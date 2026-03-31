@@ -1,5 +1,6 @@
 ---
 name: drafti-architect
+version: 0.0.1
 description: >
   기획 문서가 없는 기술 주도 작업의 PRD를 자동 생성한다.
   DX 도구, 인프라, 라이브러리, CLI, 아키텍처 설계 등 기술적 문제 정의만 입력하면

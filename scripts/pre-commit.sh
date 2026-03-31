@@ -67,12 +67,21 @@ if [ -n "$SKILL_FILES" ]; then
     # Check required fields
     has_name=$(echo "$fm" | grep -c '^name:' || true)
     has_desc=$(echo "$fm" | grep -c '^description:' || true)
+    has_version=$(echo "$fm" | grep -c '^version:' || true)
     if [ "$has_name" -eq 0 ]; then
       fail "$f — missing 'name' in frontmatter"
     elif [ "$has_desc" -eq 0 ]; then
       fail "$f — missing 'description' in frontmatter"
+    elif [ "$has_version" -eq 0 ]; then
+      fail "$f — missing 'version' in frontmatter"
     else
-      pass "$f"
+      # Validate SemVer format (X.Y.Z)
+      version_val=$(echo "$fm" | grep '^version:' | sed 's/^version:[[:space:]]*//')
+      if echo "$version_val" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        pass "$f (v$version_val)"
+      else
+        fail "$f — invalid version format '$version_val' (expected X.Y.Z)"
+      fi
     fi
   done
 else

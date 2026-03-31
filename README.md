@@ -44,7 +44,7 @@ harnish/
 
 ```bash
 # sh (plugin)
-claude plugin install https://github.com/plz-salad-not-here/harnish
+claude plugin install https://github.com/jazz1x/harnish
 
 # mcpmarket
 # drafti-architect, drafti-feature, harnish, ralphi 개별 설치
@@ -53,7 +53,7 @@ claude plugin install https://github.com/plz-salad-not-here/harnish
 ## Development
 
 ```bash
-git clone https://github.com/plz-salad-not-here/harnish.git
+git clone https://github.com/jazz1x/harnish.git
 cd harnish
 git config core.hooksPath .githooks
 ```

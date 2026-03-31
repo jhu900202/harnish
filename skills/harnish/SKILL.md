@@ -1,5 +1,6 @@
 ---
 name: harnish
+version: 0.0.1
 description: >
   자율 구현 엔진. PRD를 태스크로 분해하고, RALP 루프(Read→Act→Log→Progress)로 자율 실행하며,
   세션 간 맥락을 유지하고, 경험을 축적한다.
