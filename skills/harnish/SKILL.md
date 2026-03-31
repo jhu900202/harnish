@@ -5,12 +5,12 @@ description: >
   자율 구현 엔진. PRD를 태스크로 분해하고, RALP 루프(Read→Act→Log→Progress)로 자율 실행하며,
   세션 간 맥락을 유지하고, 경험을 축적한다.
   시딩(PRD→태스크), 구현 루프(RALP), 앵커링(세션 복원), 경험 축적(자산 감지·기록·압축·스킬화)의
-  4개 축으로 동작한다. PROGRESS.md를 세션 간 영속 상태로 유지하여 세션이 바뀌어도
+  4개 축으로 동작한다. PROGRESS.json를 세션 간 영속 상태로 유지하여 세션이 바뀌어도
   작업 맥락을 잃지 않는다. 모든 종류의 PRD(drafti-architect/drafti-feature/수동 작성)에 대응한다.
   트리거: "구현 시작", "태스크 분해", "이 PRD로 작업해", "루프 돌려", "자율 실행",
   "다음 태스크", "이어서 진행", "진행 상태", "마일스톤 보고",
   "자산 현황", "자산 압축", "이 패턴 기억해", "스킬로 만들어",
-  PROGRESS.md가 존재하고 사용자가 작업 재개를 요청할 때.
+  PROGRESS.json가 존재하고 사용자가 작업 재개를 요청할 때.
 ---
 
 # harnish — 자율 구현 엔진
@@ -34,12 +34,13 @@ VALIDATE_SCRIPT="$HARNISH_ROOT/scripts/validate-progress.sh"
 LOOP_STEP_SCRIPT="$HARNISH_ROOT/scripts/loop-step.sh"
 CHECK_VIOL_SCRIPT="$HARNISH_ROOT/scripts/check-violations.sh"
 COMPRESS_SCRIPT="$HARNISH_ROOT/scripts/compress-progress.sh"
+REPORT_SCRIPT="$HARNISH_ROOT/scripts/progress-report.sh"
 
 TASK_COMPLETE_COUNT=0
 COMPRESS_EVERY_N=5
 
 # CHECK_VIOL_SCRIPT: 세션 종료 시 또는 사용자 "위반 확인" 요청 시 사용
-# bash "$CHECK_VIOL_SCRIPT" ./PROGRESS.md
+# bash "$CHECK_VIOL_SCRIPT" ./PROGRESS.json
 ```
 
 ### 2. 상태 확인 → 모드 라우팅
@@ -47,7 +48,7 @@ COMPRESS_EVERY_N=5
 | 모드 | 트리거 | 읽을 reference |
 |------|--------|---------------|
 | **A: 시딩** | "구현 시작", "태스크 분해", PRD 제공 | `task-schema.md` + `progress-template.md` |
-| **B: 구현 루프** | "이어서 진행", "루프 돌려", PROGRESS.md 존재 | `escalation-protocol.md` + `guardrail-levels.md` |
+| **B: 구현 루프** | "이어서 진행", "루프 돌려", PROGRESS.json 존재 | `escalation-protocol.md` + `guardrail-levels.md` |
 | **C: 경험** | "자산 현황", "압축", "기억해", "스킬로" | `thresholds.md` |
 
 **규칙**: reference는 동시에 2개까지만 로드.
@@ -66,9 +67,9 @@ COMPRESS_EVERY_N=5
    ```
 4. 페이즈 분할: 데이터 → 비즈니스 로직 → UI → 통합 테스트
 5. 원자적 태스크 분해: **1 태스크 = 1파일 | 1함수 | 1테스트 | 1설정**
-6. **`references/progress-template.md`를 읽고** 그 구조대로 PROGRESS.md 생성 → 검증:
+6. **`references/progress-template.md`를 읽고** 그 JSON 스키마대로 PROGRESS.json 생성 → 검증:
    ```bash
-   bash "$VALIDATE_SCRIPT" ./PROGRESS.md
+   bash "$VALIDATE_SCRIPT" ./PROGRESS.json
    ```
 7. 사용자 검토 요청: "Phase {N}개, Task {M}개 시딩 완료 — 확인 후 '루프 돌려'"
 
@@ -81,14 +82,14 @@ COMPRESS_EVERY_N=5
 > **RALP = Read → Act → Log → Progress → repeat**
 >
 > 판단하지 않는다. 규칙을 따른다.
-> 길을 잃으면 PROGRESS.md로 돌아온다.
+> 길을 잃으면 PROGRESS.json로 돌아온다.
 > 막히면 에스컬레이션한다. 절대 혼자 발명하지 않는다.
 
 ### B.1 루프 진입
 
 ```bash
-bash "$VALIDATE_SCRIPT" ./PROGRESS.md    # 구조 검증
-bash "$LOOP_STEP_SCRIPT" ./PROGRESS.md   # 좌표 추출
+bash "$VALIDATE_SCRIPT" ./PROGRESS.json    # 구조 검증
+bash "$LOOP_STEP_SCRIPT" ./PROGRESS.json   # 좌표 추출
 # STATUS=ALL_DONE → 완료 보고
 # STATUS=NO_DOING → 첫 Todo를 Doing으로 이동
 # STATUS=ACTIVE   → 현재 Task + 다음 액션 확인
@@ -100,7 +101,7 @@ bash "$LOOP_STEP_SCRIPT" ./PROGRESS.md   # 좌표 추출
 [루프 진입] ←─────────────────────────────────────────────┐
       │                                                     │
       ├─ [READ]                                             │
-      │    ├─ PROGRESS.md Doing 섹션 읽기                  │
+      │    ├─ PROGRESS.json doing 객체 읽기                  │
       │    ├─ 현재 태스크 가이드(목적·전략·파일·참조)      │
       │    ├─ 금지사항·가드레일 읽기                       │
       │    └─ 자산 조회 (이전 경험 주입)                    │
@@ -113,9 +114,9 @@ bash "$LOOP_STEP_SCRIPT" ./PROGRESS.md   # 좌표 추출
       │    └─ 가드레일 위반 → 경고 로그 + 자동 교정        │
       │                                                     │
       ├─ [LOG] (3액션마다)                                  │
-      │    ├─ PROGRESS.md Doing 갱신                        │
+      │    ├─ PROGRESS.json doing 갱신                        │
       │    │    현재 / 마지막 액션 / 다음 액션              │
-      │    └─ bash "$VALIDATE_SCRIPT" ./PROGRESS.md         │
+      │    └─ bash "$VALIDATE_SCRIPT" ./PROGRESS.json         │
       │                                                     │
       └─ [PROGRESS]                                         │
            ├─ acceptance_criteria 실행 (§B.9)               │
@@ -148,26 +149,26 @@ bash "$LOOP_STEP_SCRIPT" ./PROGRESS.md   # 좌표 추출
 ### B.3 Todo → Doing 이동 절차
 
 ```
-1. PROGRESS.md "📋 예정 (Todo)" 섹션에서 첫 미완료 태스크 블록 확인
-2. depends_on 충족 확인 (선행 Task 모두 Done)
-3. 해당 블록을 "🔨 진행 중 (Doing)" 섹션으로 이동
-4. 필드 업데이트: 시작(ISO 8601), 현재, 다음 액션
-5. Todo에서 원본 삭제
-6. bash "$VALIDATE_SCRIPT" ./PROGRESS.md
+1. PROGRESS.json .todo.phases[0].tasks[0] 확인 (첫 미완료 태스크)
+2. depends_on 충족 확인 (선행 Task 모두 .done.phases에 존재)
+3. PROGRESS.json 갱신:
+   .doing.task = {id, title, started_at, current, next_action, blocker:null, retry_count:0, context}
+   .todo.phases[0].tasks 에서 해당 task 제거 (tasks가 빈 배열이면 phases[0]도 제거)
+4. .metadata.status 업데이트 (emoji, phase, task, label)
+5. bash "$VALIDATE_SCRIPT" ./PROGRESS.json
 ```
 
 ### B.4 Doing → Done 전환 절차
 
 ```
-1. Done 섹션에 Phase 헤더 없으면 생성: ### Phase {N}: {제목}
-2. 완료 태스크 추가:
-   - [x] Task {N-M}: {제목}
-     - 결과: {1줄}
-     - 변경 파일: {목록}
-     - 검증: {criteria 결과}
-3. Doing 섹션에서 해당 블록 삭제
-4. 메타데이터 "현재 상태" 업데이트
-5. bash "$VALIDATE_SCRIPT" ./PROGRESS.md
+1. .done.phases 에서 phase_num이 같은 Phase 찾기, 없으면 새 Phase 객체 추가:
+   {phase: N, title: "...", compressed: false, tasks: []}
+2. 완료 태스크를 해당 Phase의 .tasks 배열에 추가:
+   {id, title, result: "1줄 요약", files_changed: [...], verification: "...", duration: "N턴"}
+3. .doing.task = null
+4. .metadata.last_session = ISO 8601 현재 시각
+5. .stats.completed_tasks += 1
+6. bash "$VALIDATE_SCRIPT" ./PROGRESS.json
 ```
 
 ### B.5 마일스톤 체크포인트 보고
@@ -187,17 +188,19 @@ bash "$LOOP_STEP_SCRIPT" ./PROGRESS.md   # 좌표 추출
 계속 진행할까요?
 ```
 
+사람이 읽을 수 있는 보고서가 필요할 때: `bash "$REPORT_SCRIPT" ./PROGRESS.json`
+
 ### B.6 RAG 압축 (Done 섹션 관리)
 
 루프가 길어질수록 Done이 쌓여 컨텍스트 낭비. 두 가지 트리거:
 
 ```bash
 # 마일스톤 기반 (권장) — Phase 완료 직후
-bash "$COMPRESS_SCRIPT" ./PROGRESS.md --trigger milestone --phase {N}
+bash "$COMPRESS_SCRIPT" ./PROGRESS.json --trigger milestone --phase {N}
 
 # 카운터 기반 — N번째 태스크 완료마다
 if (( TASK_COMPLETE_COUNT % COMPRESS_EVERY_N == 0 )); then
-  bash "$COMPRESS_SCRIPT" ./PROGRESS.md --trigger count
+  bash "$COMPRESS_SCRIPT" ./PROGRESS.json --trigger count
 fi
 ```
 
@@ -221,7 +224,7 @@ fi
 - PRD에 명시되지 않은 새 패키지 설치 금지
 - 하드코딩된 시크릿 삽입 금지
 - scope 밖 파일의 비관련 리팩토링 금지
-- PROGRESS.md 삭제 또는 Done 섹션 수정 금지
+- PROGRESS.json 삭제 또는 done 객체 직접 수정 금지
 ```
 
 ### B.8 에스컬레이션
@@ -281,8 +284,8 @@ IF criteria가 비어있음:
 ### 앵커링 (세션 복원)
 
 세션 시작 시:
-1. `bash "$VALIDATE_SCRIPT" ./PROGRESS.md` → 구조 정상 확인
-2. `bash "$LOOP_STEP_SCRIPT" ./PROGRESS.md` → 좌표 추출
+1. `bash "$VALIDATE_SCRIPT" ./PROGRESS.json` → 구조 정상 확인
+2. `bash "$LOOP_STEP_SCRIPT" ./PROGRESS.json` → 좌표 추출
 3. Doing 있으면 "다음 액션"부터 재개 / 없으면 Todo 첫 Task
 4. 상태 보고:
    ```
@@ -350,27 +353,27 @@ bash "$HARNISH_ROOT/scripts/quality-gate.sh" --base-dir "$HARNISH_ROOT/_base/ass
 
 | 상황 | 동작 |
 |------|------|
-| PRD만 존재, PROGRESS.md 없음 | 모드 A (시딩) |
-| PROGRESS.md 존재, Doing 있음 | 모드 B ("다음 액션"부터) |
-| PROGRESS.md 존재, Doing 없고 Todo 있음 | 첫 Todo → Doing → 모드 B |
+| PRD만 존재, PROGRESS.json 없음 | 모드 A (시딩) |
+| PROGRESS.json 존재, Doing 있음 | 모드 B ("다음 액션"부터) |
+| PROGRESS.json 존재, Doing 없고 Todo 있음 | 첫 Todo → Doing → 모드 B |
 | 모든 태스크 Done | 완료 보고 |
 | 자산 관련 요청 | 모드 C |
 | acceptance_criteria 없음 | 에스컬레이션 |
 | 금지사항 위반 | 즉시 STOP + 에스컬레이션 |
 | 3회 실패 | failure 기록 + 에스컬레이션 |
-| 다음에 뭘 해야 할지 모를 때 | PROGRESS.md로 돌아가기 (절대 발명 금지) |
+| 다음에 뭘 해야 할지 모를 때 | PROGRESS.json로 돌아가기 (절대 발명 금지) |
 
 ## 체크포인트 규칙
 
-- **매 3액션**: PROGRESS.md 갱신 (현재/마지막/다음)
+- **매 3액션**: PROGRESS.json 갱신 (현재/마지막/다음)
 - **Task 완료**: Doing → Done, 완료 시간, 변경 파일, 검증 결과
 - **Phase 완료**: 마일스톤 보고, RAG 압축, 사용자 승인
-- **세션 종료**: 품질 게이트 (오늘 자산 완성도 1회 스캔) + 위반 확인 (`bash "$CHECK_VIOL_SCRIPT" ./PROGRESS.md`)
+- **세션 종료**: 품질 게이트 (오늘 자산 완성도 1회 스캔) + 위반 확인 (`bash "$CHECK_VIOL_SCRIPT" ./PROGRESS.json`)
 
 ## 종료 조건
 
 - Todo 비어있고 Doing 비어있음 → STOP
-- 사용자 "중단" → PROGRESS.md에 현재 상태 기록 후 STOP
+- 사용자 "중단" → PROGRESS.json에 현재 상태 기록 후 STOP
 
 ## 맥락 예산
 

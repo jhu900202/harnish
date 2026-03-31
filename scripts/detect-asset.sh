@@ -176,7 +176,8 @@ if [ "$HOOK_EVENT" = "Stop" ] || [ "$HOOK_EVENT" = "SessionEnd" ]; then
             [ -d "$sdir" ] || continue
             for sf in "$sdir"/*.md; do
                 [ -f "$sf" ] || continue
-                stab=$(grep -oP 'stability:\s*\K\d+' "$sf" 2>/dev/null || echo "0")
+                stab=$(grep -E 'stability:' "$sf" 2>/dev/null | head -1 | sed 's/.*stability:[[:space:]]*//' || echo "0")
+                [[ -z "$stab" ]] && stab="0"
                 if [ "$stab" -ge "$SKILL_THR" ]; then
                     sfname=$(basename "$sf" .md)
                     SKILL_CANDIDATES="${SKILL_CANDIDATES}${sfname}(stability=${stab}), "

@@ -10,6 +10,19 @@
 #   source "$SCRIPT_DIR/common.sh"
 
 # ═══════════════════════════════════════
+# 의존성 체크
+# ═══════════════════════════════════════
+require_cmd() {
+    local cmd="$1" install_hint="${2:-}"
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "오류: '$cmd'이(가) 설치되어 있지 않습니다.${install_hint:+ $install_hint}" >&2
+        exit 1
+    fi
+}
+
+require_cmd jq "brew install jq"
+
+# ═══════════════════════════════════════
 # 환경 해석
 # ═══════════════════════════════════════
 # 이 파일이 source된 스크립트의 SCRIPT_DIR을 기준으로 한다.
@@ -98,20 +111,20 @@ parse_frontmatter() {
 # 출력: body 본문 (frontmatter 제외)
 parse_body() {
     local file="$1"
-    sed -n '/^---$/,/^---$/!p' "$file" | sed '1{/^$/d}'
+    sed -n '/^---$/,/^---$/!p' "$file" | sed '1{/^$/d;}'
 }
 
 # frontmatter에서 특정 필드 추출
 # 사용: get_field "$frontmatter" "type"
 get_field() {
     local fm="$1" field="$2"
-    echo "$fm" | grep -oP "${field}:\s*\"?\K[^\"]*" 2>/dev/null | head -1 || echo ""
+    echo "$fm" | grep -E "${field}:" 2>/dev/null | head -1 | sed "s/.*${field}:[[:space:]]*//" | sed 's/^"//; s/"$//' || echo ""
 }
 
 # frontmatter에서 tags 배열 추출 (따옴표 제거)
 get_tags() {
     local fm="$1"
-    echo "$fm" | grep -oP 'tags:\s*\[\K[^\]]+' 2>/dev/null || echo ""
+    echo "$fm" | grep -E 'tags:' 2>/dev/null | head -1 | sed 's/.*tags:[[:space:]]*\[//' | sed 's/\].*//' || echo ""
 }
 
 # ═══════════════════════════════════════

@@ -21,6 +21,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 SKILL_DIR="$(cd "$SCRIPT_DIR/../skills/harnish" && pwd)"
 SECTIONS_FILE="$SKILL_DIR/references/sections.json"
 
@@ -82,9 +83,15 @@ POOR=0
 check_asset() {
     local file="$1"
     local filename=$(basename "$file" .md)
-    local type=$(grep -oP 'type:\s*\K\S+' "$file" 2>/dev/null || echo "unknown")
-    local tags_val=$(grep -oP 'tags:\s*\[\K[^\]]*' "$file" 2>/dev/null || echo "")
-    local context_val=$(grep -oP 'context:\s*"\K[^"]*' "$file" 2>/dev/null || echo "")
+    local fm
+    fm=$(parse_frontmatter "$file")
+    local type
+    type=$(get_field "$fm" "type")
+    [[ -z "$type" ]] && type="unknown"
+    local tags_val
+    tags_val=$(get_tags "$fm")
+    local context_val
+    context_val=$(get_field "$fm" "context")
     local problems="[]"
 
     SCANNED=$((SCANNED + 1))
@@ -107,7 +114,7 @@ check_asset() {
 
     # 3) 본문 품질 검증
     local body
-    body=$(sed -n '/^---$/,/^---$/!p' "$file" | sed '1{/^$/d}')
+    body=$(parse_body "$file")
     local body_text_lines
     body_text_lines=$(echo "$body" | { grep -v "^#" || true; } | { grep -v "^$" || true; } | { grep -v '```' || true; } | wc -l | xargs)
 

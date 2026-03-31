@@ -6,6 +6,7 @@
 ## frontmatter
 
 - `name`: 필수. 케밥 케이스.
+- `version`: 필수. SemVer 포맷 (`X.Y.Z`). pre-commit 훅이 검증함.
 - `description`: 필수. 1줄 이상.
 
 ## 모호 표현

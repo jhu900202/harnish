@@ -13,6 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
 SOURCE="" SKILL_NAME="" OUTPUT_DIR=""
 
@@ -50,20 +51,22 @@ SKILL_DIR="$OUTPUT_DIR/$SKILL_NAME"
 
 mkdir -p "$SKILL_DIR/references"
 
-# --- frontmatter에서 메타데이터 추출 (본문 오매칭 방지: frontmatter 영역만 파싱) ---
-FRONTMATTER=$(sed -n '1,/^---$/{ /^---$/!p }' "$SOURCE" | sed -n '1,/^---$/p')
-# 첫 ---과 두번째 --- 사이만 추출
-FRONTMATTER=$(awk '/^---$/{n++; next} n==1{print} n>=2{exit}' "$SOURCE")
+# --- frontmatter에서 메타데이터 추출 ---
+FRONTMATTER=$(parse_frontmatter "$SOURCE")
 
-TAGS=$(echo "$FRONTMATTER" | grep -oP 'tags:\s*\[\K[^\]]+' 2>/dev/null || echo "$SKILL_NAME")
+TAGS=$(get_tags "$FRONTMATTER")
+[[ -z "$TAGS" ]] && TAGS="$SKILL_NAME"
 TAGS=$(echo "$TAGS" | tr -d '"' | tr -d "'" | xargs)
 
-LABEL=$(echo "$FRONTMATTER" | grep -oP 'label:\s*"\K[^"]+' 2>/dev/null || echo "압축 자산")
-SOURCE_COUNT=$(echo "$FRONTMATTER" | grep -oP 'source_count:\s*\K\d+' 2>/dev/null || echo "?")
-SUMMARIZED=$(echo "$FRONTMATTER" | grep -oP 'summarized:\s*\K\S+' 2>/dev/null || echo "unknown")
+LABEL=$(get_field "$FRONTMATTER" "label")
+[[ -z "$LABEL" ]] && LABEL="압축 자산"
+SOURCE_COUNT=$(get_field "$FRONTMATTER" "source_count")
+[[ -z "$SOURCE_COUNT" ]] && SOURCE_COUNT="?"
+SUMMARIZED=$(get_field "$FRONTMATTER" "summarized")
+[[ -z "$SUMMARIZED" ]] && SUMMARIZED="unknown"
 
 # --- 본문 추출 (frontmatter 제외) ---
-BODY=$(sed -n '/^---$/,/^---$/!p' "$SOURCE" | sed '1{/^$/d}')
+BODY=$(parse_body "$SOURCE")
 
 # --- guardrail 섹션 자동 추출 ---
 # 전략: archive glob 대신 압축 본문에서 직접 추출 (경로 문제 회피)
@@ -103,6 +106,7 @@ fi
 cat > "$SKILL_DIR/SKILL.md" << SKILLEOF
 ---
 name: ${SKILL_NAME}
+version: 0.0.1
 description: >
   (자동 생성 초안) ${LABEL} 기반 스킬 — ${SOURCE_COUNT}건의 자산에서 추출.
   TRIGGERS: ${TAGS}.

@@ -59,7 +59,10 @@ rebuild_counts() {
         if [[ -d "$dir" ]]; then
             for f in "$dir"/*.md; do
                 [[ -f "$f" ]] || continue
-                local tags_line=$(grep -oP 'tags:\s*\[\K[^\]]+' "$f" 2>/dev/null || true)
+                local fm_tmp
+                fm_tmp=$(parse_frontmatter "$f")
+                local tags_line
+                tags_line=$(get_tags "$fm_tmp")
                 if [[ -n "$tags_line" ]]; then
                     IFS=',' read -ra tags <<< "$tags_line"
                     for tag in "${tags[@]}"; do
@@ -119,7 +122,8 @@ for folder in patterns snippets; do
     [[ -d "$dir" ]] || continue
     for f in "$dir"/*.md; do
         [[ -f "$f" ]] || continue
-        stability=$(grep -oP 'stability:\s*\K\d+' "$f" 2>/dev/null || echo "0")
+        stability=$(grep -E 'stability:' "$f" 2>/dev/null | head -1 | sed 's/.*stability:[[:space:]]*//' || echo "0")
+        [[ -z "$stability" ]] && stability="0"
         if [[ "$stability" -ge "$SKILL_THRESHOLD" ]]; then
             SKILL_ALERTS=$(echo "$SKILL_ALERTS" | jq --arg f "$(basename "$f")" --argjson s "$stability" \
                 '. + [{level: "skillification", file: $f, stability: $s, message: "stability \($s) 도달 — 스킬화를 권장합니다"}]')

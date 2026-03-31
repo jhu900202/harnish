@@ -169,6 +169,26 @@
     "skillify.sh": {
       "input": "--source, --skill-name, [--output-dir]",
       "output": "{status, skill_name, skill_dir, source_summarized, files, next_steps}"
+    },
+    "validate-progress.sh": {
+      "input": "[PROGRESS.json 경로]",
+      "output": "구조 정상/오류 메시지 (exit 0=정상, 1=오류)"
+    },
+    "loop-step.sh": {
+      "input": "[PROGRESS.json 경로] [--format json|text]",
+      "output": "{status, current_task, current_title, current_phase, next_action, prd_path, todo_remaining, phase_todo_remaining, phase_milestone, milestone_phase, done_count}"
+    },
+    "compress-progress.sh": {
+      "input": "[PROGRESS.json 경로] --trigger milestone|count [--phase N] [--dry-run]",
+      "output": "압축 결과 메시지 + .progress-archive/phases.jsonl append"
+    },
+    "check-violations.sh": {
+      "input": "[PROGRESS.json 경로]",
+      "output": "위반/에스컬레이션 건수 + 상세"
+    },
+    "progress-report.sh": {
+      "input": "[PROGRESS.json 경로]",
+      "output": "마크다운 형태의 사람용 보고서 (stdout)"
     }
   },
 
@@ -181,7 +201,7 @@
     "L1_Storage": {
       "files": ["scripts/common.sh", "scripts/init-assets.sh"],
       "rule": "디렉토리·인덱스 관리, 공용 함수. L2 이상을 호출하지 않음.",
-      "exports": ["_default_base()", "resolve_env()", "slugify()", "format_yaml_tags()", "atomic_write_index()", "parse_frontmatter()"]
+      "exports": ["require_cmd()", "resolve_base_dir()", "slugify()", "format_yaml_tags()", "atomic_write_index()", "parse_frontmatter()", "parse_body()", "get_field()", "get_tags()"]
     },
     "L2_Operation": {
       "files": ["scripts/record-asset.sh", "scripts/quality-gate.sh", "scripts/localize-asset.sh", "scripts/abstract-asset.sh"],
@@ -194,12 +214,12 @@
       "depends_on": ["L1_Storage", "L2_Operation", "L0_Contract"]
     },
     "L4_Interface": {
-      "files": ["scripts/detect-asset.sh", "SKILL.md", "hooks/hooks.json"],
+      "files": ["scripts/detect-asset.sh", "scripts/validate-progress.sh", "scripts/loop-step.sh", "scripts/compress-progress.sh", "scripts/check-violations.sh", "scripts/progress-report.sh", "SKILL.md", "hooks/hooks.json"],
       "rule": "외부 경계. hook 핸들러는 L2·L3를 호출 가능. SKILL.md는 Claude의 진입점.",
       "depends_on": ["L1_Storage", "L2_Operation", "L3_Aggregate"]
     },
     "L5_Test": {
-      "files": ["scripts/test-harness.py", "scripts/test-harness.sh"],
+      "files": ["scripts/test-all.sh"],
       "rule": "검증 전용. 모든 레이어 호출 가능. 프로덕션 코드에서 호출하지 않음."
     }
   }

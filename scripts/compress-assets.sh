@@ -55,7 +55,7 @@ find_by_tag() {
             [[ -f "$f" ]] || continue
             # tags: ["api", "retry"] 또는 tags: [api, retry] 둘 다 매칭
             # 따옴표 유무, 공백 유무 모든 조합을 커버
-            if grep -qP "tags:\s*\[.*(?<![a-z0-9-])${tag}(?![a-z0-9-])" "$f" 2>/dev/null; then
+            if grep -qE "tags:.*\[" "$f" 2>/dev/null && grep -E "tags:" "$f" | grep -qw "$tag" 2>/dev/null; then
                 results+=("$f")
             fi
         done
@@ -80,7 +80,10 @@ compress_group() {
     # 모든 태그 수집 (따옴표 제거 후 정규화)
     local all_tags=""
     for f in "${files[@]}"; do
-        local tags_line=$(grep -oP 'tags:\s*\[\K[^\]]+' "$f" 2>/dev/null || true)
+        local fm_temp
+        fm_temp=$(parse_frontmatter "$f")
+        local tags_line
+        tags_line=$(get_tags "$fm_temp")
         [[ -n "$tags_line" ]] && all_tags="$all_tags,$tags_line"
     done
     all_tags=$(echo "$all_tags" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | tr -d '"' | tr -d "'" | grep -v '^$' | sort -u | paste -sd, -)
@@ -134,8 +137,13 @@ compress_group() {
 
         for f in "${files[@]}"; do
             local fname=$(basename "$f" .md)
-            local ftype=$(grep -oP 'type:\s*\K\S+' "$f" 2>/dev/null || echo "unknown")
-            local fcontext=$(grep -oP 'context:\s*"\K[^"]*' "$f" 2>/dev/null || echo "")
+            local fmtmp
+            fmtmp=$(parse_frontmatter "$f")
+            local ftype
+            ftype=$(get_field "$fmtmp" "type")
+            [[ -z "$ftype" ]] && ftype="unknown"
+            local fcontext
+            fcontext=$(get_field "$fmtmp" "context")
             echo "### ${fname} (${ftype})"
             [[ -n "$fcontext" ]] && echo "> context: ${fcontext}"
             echo ""
@@ -160,7 +168,10 @@ compress_group() {
 
         for f in "${files[@]}"; do
             local archived_file="$archive_dir/$(basename "$f")"
-            local ftype=$(grep -oP 'type:\s*\K\S+' "$archived_file" 2>/dev/null || true)
+            local afm
+            afm=$(parse_frontmatter "$archived_file")
+            local ftype
+            ftype=$(get_field "$afm" "type")
 
             # counts 차감
             case "$ftype" in
@@ -173,7 +184,8 @@ compress_group() {
             esac
 
             # tag_index 차감
-            local ftags=$(grep -oP 'tags:\s*\[\K[^\]]+' "$archived_file" 2>/dev/null || true)
+            local ftags
+            ftags=$(get_tags "$afm")
             if [[ -n "$ftags" ]]; then
                 IFS=',' read -ra ftag_arr <<< "$ftags"
                 for ft in "${ftag_arr[@]}"; do
@@ -194,7 +206,8 @@ compress_group() {
 
 # --- 메인 ---
 if [[ -n "$TAG" ]]; then
-    mapfile -t FILES < <(find_by_tag "$TAG")
+    FILES=()
+    while IFS= read -r f; do [[ -n "$f" ]] && FILES+=("$f"); done < <(find_by_tag "$TAG")
     if [[ ${#FILES[@]} -eq 0 ]]; then
         echo "{\"status\":\"empty\",\"message\":\"태그 '$TAG'에 해당하는 자산이 없습니다.\"}"
         exit 0
@@ -207,7 +220,8 @@ elif [[ -n "$TYPE" ]]; then
         echo "{\"status\":\"empty\",\"message\":\"유형 '$TYPE' 디렉토리가 없습니다.\"}"
         exit 0
     fi
-    mapfile -t FILES < <(find "$DIR" -maxdepth 1 -name '*.md' -type f)
+    FILES=()
+    while IFS= read -r f; do [[ -n "$f" ]] && FILES+=("$f"); done < <(find "$DIR" -maxdepth 1 -name '*.md' -type f)
     if [[ ${#FILES[@]} -eq 0 ]]; then
         echo "{\"status\":\"empty\",\"message\":\"유형 '$TYPE'에 해당하는 자산이 없습니다.\"}"
         exit 0
@@ -225,7 +239,8 @@ elif $ALL; then
     RESULTS="[]"
 
     for tag in $(jq -r --argjson thr "$THRESHOLD" '.tag_index | to_entries[] | select(.value >= $thr) | .key' "$INDEX_FILE"); do
-        mapfile -t FILES < <(find_by_tag "$tag")
+        FILES=()
+        while IFS= read -r f; do [[ -n "$f" ]] && FILES+=("$f"); done < <(find_by_tag "$tag")
         if [[ ${#FILES[@]} -gt 0 ]]; then
             RESULT=$(compress_group "tag-${tag}" "${FILES[@]}")
             RESULTS=$(echo "$RESULTS" | jq --argjson r "[$RESULT]" '. + $r')

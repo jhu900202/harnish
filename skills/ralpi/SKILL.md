@@ -117,7 +117,7 @@ harnish, drafti와 **독립된 궤도**에서 동작한다. 직접 호출하지 
 ### 4.4 코드 검증
 
 **정적 분석:**
-- acceptance_criteria 충족 여부 (PROGRESS.md 참조)
+- acceptance_criteria 충족 여부 (PROGRESS.json 참조)
 - 가드레일 위반 없는가 (하드코딩 시크릿, scope 이탈)
 - 타입 체크 통과 (언어별 도구: `criteria-code.md` §0 매핑 참조)
 

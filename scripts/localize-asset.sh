@@ -54,9 +54,11 @@ fi
 
 # --- 원본 메타데이터 추출 (frontmatter만) ---
 FRONTMATTER=$(awk '/^---$/{n++; next} n==1{print} n>=2{exit}' "$SOURCE")
-ORIG_TYPE=$(echo "$FRONTMATTER" | grep -oP 'type:\s*\K\S+' 2>/dev/null || echo "unknown")
-ORIG_SCOPE=$(echo "$FRONTMATTER" | grep -oP 'scope:\s*\K\S+' 2>/dev/null || echo "generic")
-ORIG_TAGS=$(echo "$FRONTMATTER" | grep -oP 'tags:\s*\[\K[^\]]+' 2>/dev/null || echo "")
+ORIG_TYPE=$(get_field "$FRONTMATTER" "type")
+[[ -z "$ORIG_TYPE" ]] && ORIG_TYPE="unknown"
+ORIG_SCOPE=$(get_field "$FRONTMATTER" "scope")
+[[ -z "$ORIG_SCOPE" ]] && ORIG_SCOPE="generic"
+ORIG_TAGS=$(get_tags "$FRONTMATTER")
 
 # scope 방향 검증: generic → project/team 만 허용
 if [[ "$ORIG_SCOPE" == "project" && "$TARGET_SCOPE" == "project" ]]; then
@@ -65,22 +67,23 @@ if [[ "$ORIG_SCOPE" == "project" && "$TARGET_SCOPE" == "project" ]]; then
 fi
 
 # --- 본문 추출 ---
-BODY=$(sed -n '/^---$/,/^---$/!p' "$SOURCE" | sed '1{/^$/d}')
+BODY=$(parse_body "$SOURCE")
 
 # --- 출력 파일 생성 ---
 DATE=$(date +"%Y-%m-%d")
 SOURCE_BASENAME=$(basename "$SOURCE" .md)
-OUTPUT_DIR="$ASSET_BASE/$(
-    case "$ORIG_TYPE" in
-        pattern) echo "patterns";;
-        failure) echo "failures";;
-        guardrail) echo "guardrails";;
-        snippet) echo "snippets";;
-        decision) echo "decisions";;
-        compressed) echo ".compressed";;
-        *) echo "patterns";;
-    esac
-)"
+_type_subdir() {
+    local t="$1"
+    if [[ "$t" == "failure" ]]; then echo "failures"
+    elif [[ "$t" == "pattern" ]]; then echo "patterns"
+    elif [[ "$t" == "guardrail" ]]; then echo "guardrails"
+    elif [[ "$t" == "snippet" ]]; then echo "snippets"
+    elif [[ "$t" == "decision" ]]; then echo "decisions"
+    elif [[ "$t" == "compressed" ]]; then echo ".compressed"
+    else echo "patterns"
+    fi
+}
+OUTPUT_DIR="$ASSET_BASE/$(_type_subdir "$ORIG_TYPE")"
 mkdir -p "$OUTPUT_DIR"
 
 OUTPUT_FILE="$OUTPUT_DIR/${DATE}-local-${SOURCE_BASENAME}.md"

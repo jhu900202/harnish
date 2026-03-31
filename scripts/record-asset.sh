@@ -23,6 +23,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 SKILL_DIR="$(cd "$SCRIPT_DIR/../skills/harnish" && pwd)"
 SECTIONS_FILE="$SKILL_DIR/references/sections.json"
 
@@ -277,11 +278,15 @@ RCA_HEALED="[]"
 # 1) frontmatter 필수 필드 검증
 rca_check_frontmatter() {
     local file="$1"
-    local tags_val=$(grep -oP 'tags:\s*\[\K[^\]]*' "$file" 2>/dev/null || echo "")
+    local fm
+    fm=$(parse_frontmatter "$file")
+    local tags_val
+    tags_val=$(get_tags "$fm")
     if [[ -z "$tags_val" ]]; then
         RCA_WARNINGS=$(echo "$RCA_WARNINGS" | jq '. + ["tags가 비어있습니다 — 3~5개의 소문자 kebab-case 태그를 권장합니다"]')
     fi
-    local ctx_val=$(grep -oP 'context:\s*"\K[^"]*' "$file" 2>/dev/null || echo "")
+    local ctx_val
+    ctx_val=$(get_field "$fm" "context")
     if [[ -z "$ctx_val" ]]; then
         RCA_WARNINGS=$(echo "$RCA_WARNINGS" | jq '. + ["context가 비어있습니다 — 기록 배경을 넣으면 검색성이 올라갑니다"]')
     fi
@@ -291,7 +296,7 @@ rca_check_frontmatter() {
 rca_check_body() {
     local file="$1" type="$2"
     local body
-    body=$(sed -n '/^---$/,/^---$/!p' "$file" | sed '1{/^$/d}')
+    body=$(parse_body "$file")
 
     # sections.json에서 필수 섹션 목록을 읽는다
     local required_sections=""
@@ -339,9 +344,10 @@ rca_check_body() {
 # 3) 자동 치유: date가 비어있으면 수정
 rca_heal_date() {
     local file="$1"
-    local file_date=$(grep -oP 'date:\s*\K\S+' "$file" 2>/dev/null || echo "")
+    local file_date
+    file_date=$(grep -E 'date:' "$file" 2>/dev/null | head -1 | sed 's/.*date:[[:space:]]*//' || echo "")
     if [[ -z "$file_date" ]]; then
-        sed -i "s/^date:.*/date: ${DATE}/" "$file"
+        sed -i '' "s/^date:.*/date: ${DATE}/" "$file"
         RCA_HEALED=$(echo "$RCA_HEALED" | jq '. + ["date 필드가 비어있어 자동 설정: '"$DATE"'"]')
     fi
 }
@@ -350,7 +356,7 @@ rca_heal_date() {
 rca_heal_placeholder() {
     local file="$1"
     if grep -q "(미정)" "$file" 2>/dev/null; then
-        sed -i 's/(미정)//g' "$file"
+        sed -i '' 's/(미정)//g' "$file"
         RCA_HEALED=$(echo "$RCA_HEALED" | jq '. + ["(미정) 플레이스홀더 자동 제거"]')
     fi
 }

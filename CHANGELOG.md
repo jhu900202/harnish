@@ -29,7 +29,7 @@ First release. 4 skills + 16 shared scripts + asset infrastructure.
 
 #### harnish `0.0.1`
 - 자율 구현 엔진 (시딩 + RALP 루프 + 앵커링 + 경험 축적)
-- 모드 A: PRD → 원자적 태스크 분해 → PROGRESS.md 생성
+- 모드 A: PRD → 원자적 태스크 분해 → PROGRESS.json 생성
 - 모드 B: RALP 루프 (Read → Act → Log → Progress → repeat)
 - 모드 C: 세션 복원 (앵커링) + 자산 감지/기록/압축/스킬화
 - §B.9 acceptance_criteria 실행: bash/조건/혼합/없음 4가지 분기

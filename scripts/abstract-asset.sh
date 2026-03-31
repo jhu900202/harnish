@@ -15,6 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
 _default_base() {
     if [[ -n "${ASSET_BASE_DIR:-}" ]]; then
@@ -51,8 +52,10 @@ fi
 
 # --- frontmatter 추출 ---
 FRONTMATTER=$(awk '/^---$/{n++; next} n==1{print} n>=2{exit}' "$SOURCE")
-ORIG_TYPE=$(echo "$FRONTMATTER" | grep -oP 'type:\s*\K\S+' 2>/dev/null || echo "unknown")
-ORIG_SCOPE=$(echo "$FRONTMATTER" | grep -oP 'scope:\s*\K\S+' 2>/dev/null || echo "project")
+ORIG_TYPE=$(get_field "$FRONTMATTER" "type")
+[[ -z "$ORIG_TYPE" ]] && ORIG_TYPE="unknown"
+ORIG_SCOPE=$(get_field "$FRONTMATTER" "scope")
+[[ -z "$ORIG_SCOPE" ]] && ORIG_SCOPE="project"
 
 # scope 방향 검증
 if [[ "$ORIG_SCOPE" == "generic" ]]; then
@@ -61,7 +64,7 @@ if [[ "$ORIG_SCOPE" == "generic" ]]; then
 fi
 
 # --- 본문 추출 ---
-BODY=$(sed -n '/^---$/,/^---$/!p' "$SOURCE" | sed '1{/^$/d}')
+BODY=$(parse_body "$SOURCE")
 
 # ═══════════════════════════════════════════════════════════
 # 프로젝트 특정 요소 자동 감지

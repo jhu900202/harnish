@@ -22,6 +22,8 @@ _base/assets/compressed/
 _base/assets/index.json
 
 # State files (runtime-generated)
+PROGRESS.json
+PROGRESS.json.backup
 PROGRESS.md
 work-current-rag.md
 state.json
