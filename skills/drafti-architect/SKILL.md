@@ -28,7 +28,7 @@ description: >
 - [ ] **7단계**: PRD 구조화 (규모별 섹션 결정: §5)
 - [ ] **8단계**: docs/prd-{slug}.md 저장 (존재 확인 + mkdir)
 - [ ] **9단계**: decision/guardrail 자산 기록 (bash: record-asset.sh)
-- [ ] **10단계**: harnish 연결 안내문 제시
+- [ ] **10단계**: 완료 안내 제시
 
 ---
 
@@ -45,7 +45,7 @@ flowchart TD
     S6 --> S7["⑦ docs/ 생성\nmkdir -p docs/"]
     S7 --> S8["⑧ PRD 저장\nprd-{slug}.md"]
     S8 --> S9["⑨ 자산 기록\n(record-asset.sh)"]
-    S9 --> Output["✅ 완료\n+ harnish 안내"]
+    S9 --> Output["✅ 완료\n+ 다음 단계 안내"]
 ```
 
 ### PRD 생성 시퀀스
@@ -74,7 +74,7 @@ sequenceDiagram
     PA->>Scripts: bash record-asset.sh<br/>--type decision
     PA->>Scripts: bash record-asset.sh<br/>--type guardrail
 
-    PA-->>User: ✅ PRD 완료 메시지<br/>+ harnish 안내
+    PA-->>User: ✅ PRD 완료 메시지<br/>+ 다음 단계 안내
 ```
 
 ## 2. 문제 명확화 단계 (CONCRETE CHECKLIST)
@@ -113,13 +113,21 @@ sequenceDiagram
 ### 자산 쿼리 실행
 
 ```bash
-# HARNISH_ROOT = harnish 리포 루트 (자동 해석)
-HARNISH_ROOT="${CLAUDE_SKILL_DIR}/../.."
+# HARNISH_ROOT 감지 (모노리포 vs 독립 설치)
+if [[ -f "${CLAUDE_SKILL_DIR}/../../scripts/query-assets.sh" ]]; then
+  HARNISH_ROOT="${CLAUDE_SKILL_DIR}/../.."
+else
+  HARNISH_ROOT=""
+fi
 
-bash "$HARNISH_ROOT/scripts/query-assets.sh" \
-  --tags "docker,cache,build" \
-  --format inject \
-  --base-dir "$HARNISH_ROOT/_base/assets"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
+    --tags "{추출된 태그 3~5개}" \
+    --format inject \
+    --base-dir "$HARNISH_ROOT/_base/assets"
+else
+  echo "ℹ️ 독립 모드: 자산 조회 비활성. 기존 자산 없이 진행."
+fi
 ```
 
 ### 결과 처리
@@ -221,42 +229,44 @@ EOF
 주요 설계 결정과 발견된 가드레일을 공용 스크립트로 저장한다.
 
 ```bash
-HARNISH_ROOT="${CLAUDE_SKILL_DIR}/../.."
+if [[ -n "$HARNISH_ROOT" ]]; then
+  # Decision 자산 기록
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
+    --type decision \
+    --tags "{추출된 태그}" \
+    --context "prd-{slug}: {선택한 대안 이름}" \
+    --title "{결정 사항 한 줄}" \
+    --content "{선택 근거 요약}" \
+    --base-dir "$HARNISH_ROOT/_base/assets"
 
-# Decision 자산 기록
-bash "$HARNISH_ROOT/scripts/record-asset.sh" \
-  --type decision \
-  --tags "docker,cache,build" \
-  --context "prd-docker-cache: 멀티스테이지 빌드 선택" \
-  --title "Docker 멀티스테이지 빌드 선택 (레이어 캐시 최적)" \
-  --content "레이어별 독립 캐시 + 최종 이미지 경량화. 구현 난이도 낮음. Node.js CI 5분 단축." \
-  --base-dir "$HARNISH_ROOT/_base/assets"
-
-# Guardrail 자산 기록 (도출된 제약 조건)
-bash "$HARNISH_ROOT/scripts/record-asset.sh" \
-  --type guardrail \
-  --tags "docker,cache" \
-  --context "prd-docker-cache: 캐시 무효화 전략" \
-  --title "Docker Dockerfile 순서: RUN npm install → COPY . (절대 역순 금지)" \
-  --content "역순 변경 시 모든 레이어 캐시 무효화. 매 빌드 npm install 재실행 → 시간 낭비" \
-  --base-dir "$HARNISH_ROOT/_base/assets"
+  # Guardrail 자산 기록 (도출된 제약이 있는 경우)
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
+    --type guardrail \
+    --tags "{추출된 태그}" \
+    --context "prd-{slug}: {제약 맥락}" \
+    --title "{규칙 한 줄}" \
+    --content "{위반 시 결과}" \
+    --base-dir "$HARNISH_ROOT/_base/assets"
+else
+  echo "ℹ️ 독립 모드: 자산 기록 비활성. PRD만 저장됨."
+fi
 ```
 
-## 7. harnish 연결 (HANDOFF MESSAGE)
+## 7. 완료 안내
 
 PRD 완성 후 이 메시지를 사용자에게 제시한다:
 
 ```
 ✅ PRD가 완성되었습니다: docs/prd-{slug}.md
 
-다음 단계:
-1. PRD를 검토하신 후 "구현 시작" 또는 "태스크 분해"를 말씀해주세요.
-2. harnish가 이어받아 PRD를 파싱하고 세부 태스크로 분해합니다.
-
-harnish가 파싱하는 필수 섹션 (확인됨):
+포함된 섹션:
 ✓ §4 구현 명세 (파일별 변경 사항)
 ✓ §6 테스트 기준 (acceptance criteria)
 ✓ §7 가드레일 (prohibitions + guardrails)
+
+다음 단계:
+- PRD를 검토하신 후 "구현 시작" 또는 "태스크 분해"를 요청하세요.
+- 검증이 필요하면 /ralphi로 PRD 정합성을 확인할 수 있습니다.
 ```
 
 ## 8. drafti-feature와의 구분 (DECISION TREE)

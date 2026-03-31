@@ -57,41 +57,76 @@ flowchart TD
 **명령어** (핵심 키워드 3~5개 추출 후 실행):
 
 ```bash
-HARNISH_ROOT="${CLAUDE_SKILL_DIR}/../.."
+if [[ -f "${CLAUDE_SKILL_DIR}/../../scripts/query-assets.sh" ]]; then
+  HARNISH_ROOT="${CLAUDE_SKILL_DIR}/../.."
+else
+  HARNISH_ROOT=""
+fi
 
-# 롤아웃 패턴 (성공 사례)
-bash "$HARNISH_ROOT/scripts/query-assets.sh" \
-  --tags "{키워드_1},{키워드_2}" --types "pattern" --format inject \
-  --base-dir "$HARNISH_ROOT/_base/assets"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  # 롤아웃 패턴 (성공 사례)
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
+    --tags "{키워드_1},{키워드_2}" --types "pattern" --format inject \
+    --base-dir "$HARNISH_ROOT/_base/assets"
 
-# 실패 사례
-bash "$HARNISH_ROOT/scripts/query-assets.sh" \
-  --tags "{키워드_1},{키워드_2}" --types "failure" --format inject \
-  --base-dir "$HARNISH_ROOT/_base/assets"
+  # 실패 사례
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
+    --tags "{키워드_1},{키워드_2}" --types "failure" --format inject \
+    --base-dir "$HARNISH_ROOT/_base/assets"
 
-# 피쳐플래그 컨벤션
-bash "$HARNISH_ROOT/scripts/query-assets.sh" \
-  --tags "feature-flag,convention" --types "guardrail" --format inject \
-  --base-dir "$HARNISH_ROOT/_base/assets"
+  # 피쳐플래그 컨벤션
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
+    --tags "feature-flag,convention" --types "guardrail" --format inject \
+    --base-dir "$HARNISH_ROOT/_base/assets"
+else
+  echo "ℹ️ 독립 모드: 자산 조회 비활성. 기본 규칙으로 진행."
+fi
 ```
 
-**결과**: 자산 있으면 참고, 없어도 기본 규칙(§5.2, §5.3)으로 진행.
+**결과**: 자산 있으면 참고, 없어도 기본 규칙(§5 롤아웃 전략 + 킬스위치)으로 진행.
 
 ## 4. 코드베이스 탐색
 
-**Step 1: 파일 검색** (핵심 키워드 각각)
+> 아래 명령은 프로젝트 언어에 맞게 조정한다.
+> 소스 루트(`src/`, `app/`, `lib/` 등)와 확장자를 프로젝트에 맞게 변경.
+
+**Step 0: 언어 감지** (프로젝트 설정 파일로 판별)
 ```bash
-grep -rn "{keyword}" src/ --include="*.ts" --include="*.tsx" --include="*.js" -l | head -20
+# 존재하는 설정 파일로 주 언어 판별
+ls package.json tsconfig.json 2>/dev/null && echo "→ JS/TS 프로젝트"
+ls pyproject.toml setup.py requirements.txt 2>/dev/null && echo "→ Python 프로젝트"
+ls go.mod 2>/dev/null && echo "→ Go 프로젝트"
+ls Cargo.toml 2>/dev/null && echo "→ Rust 프로젝트"
+ls build.gradle pom.xml 2>/dev/null && echo "→ Java/Kotlin 프로젝트"
+```
+
+**Step 1: 파일 검색** (핵심 키워드 각각, 언어별 확장자)
+```bash
+# Python 예시 (기본)
+grep -rn "{keyword}" . --include="*.py" -l | head -20
+
+# TypeScript/JS 프로젝트 시
+# grep -rn "{keyword}" src/ --include="*.ts" --include="*.tsx" --include="*.js" -l | head -20
+
+# Java 프로젝트 시
+# grep -rn "{keyword}" src/ --include="*.java" --include="*.kt" -l | head -20
 ```
 
 **Step 2: 파일명 패턴**
 ```bash
-find src/ -name "*[Kk]{keyword}*" -type f | head -20
+find . -name "*[Kk]{keyword}*" -type f -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/target/*" | head -20
 ```
 
-**Step 3: 데이터 모델**
+**Step 3: 데이터 모델** (언어별 타입 정의 패턴)
 ```bash
-grep -rn "interface.*{Keyword}\|type.*{Keyword}" src/ --include="*.ts" --include="*.tsx" | head -10
+# Python: class, TypedDict, dataclass, Pydantic model
+grep -rn "class.*{Keyword}\|{Keyword}.*BaseModel\|{Keyword}.*TypedDict" . --include="*.py" | head -10
+
+# TypeScript: interface, type
+# grep -rn "interface.*{Keyword}\|type.*{Keyword}" src/ --include="*.ts" --include="*.tsx" | head -10
+
+# Java/Kotlin: class, record, data class
+# grep -rn "class.*{Keyword}\|record.*{Keyword}" src/ --include="*.java" --include="*.kt" | head -10
 ```
 
 **결과 기록**: 영향 파일 + 데이터 모델 변경 여부 (→ PRD §3에 반영)
@@ -117,7 +152,7 @@ grep -rn "interface.*{Keyword}\|type.*{Keyword}" src/ --include="*.ts" --include
 
 ## 6. 구현 명세 작성 (PRD §4)
 
-**harnish 파싱용. 구체적 태스크로 분해되므로 명확해야 함.**
+**태스크 분해의 기반이 되므로, 파일 경로·함수·분기 위치를 구체적으로 명시해야 함.**
 
 **§4.1 파일별 변경**: 경로 | 변경유형 | 설명 | 플래그분기
 ```markdown
@@ -142,7 +177,7 @@ grep -rn "interface.*{Keyword}\|type.*{Keyword}" src/ --include="*.ts" --include
 
 ## 7. 엣지케이스 & 테스트 (PRD §5, §6)
 
-**harnish 파싱 섹션. 플래그 상태별로 분리.**
+**검증 기준의 핵심. 플래그 상태별로 분리해야 누락 없이 테스트 가능.**
 
 **§5 엣지케이스**:
 ```markdown
@@ -216,21 +251,21 @@ grep -rn "interface.*{Keyword}\|type.*{Keyword}" src/ --include="*.ts" --include
 - 주 단위 진행 판단
 ```
 
-**자산 기록 (자동 실행)**:
+**자산 기록 (생태계 모드에서만)**:
 ```bash
-HARNISH_ROOT="${CLAUDE_SKILL_DIR}/../.."
+if [[ -n "$HARNISH_ROOT" ]]; then
+  # 패턴 기록
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
+    --type pattern --tags "{키워드},{롤아웃}" --context "{피쳐명}" \
+    --title "롤아웃 패턴: {피쳐명}" --content "[스케줄]" \
+    --base-dir "$HARNISH_ROOT/_base/assets"
 
-# 패턴 기록
-bash "$HARNISH_ROOT/scripts/record-asset.sh" \
-  --type pattern --tags "{키워드},{롤아웃}" --context "{피쳐명}" \
-  --title "롤아웃 패턴: {피쳐명}" --content "[스케줄]" \
-  --base-dir "$HARNISH_ROOT/_base/assets"
-
-# 가드레일 기록
-bash "$HARNISH_ROOT/scripts/record-asset.sh" \
-  --type guardrail --tags "{키워드},feature-flag" --context "{피쳐명} 가드레일" \
-  --title "§7 가드레일: {피쳐명}" --content "[PRD §7 전문]" \
-  --base-dir "$HARNISH_ROOT/_base/assets"
+  # 가드레일 기록
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
+    --type guardrail --tags "{키워드},feature-flag" --context "{피쳐명} 가드레일" \
+    --title "§7 가드레일: {피쳐명}" --content "[PRD §7 전문]" \
+    --base-dir "$HARNISH_ROOT/_base/assets"
+fi
 ```
 
 ## 9. 오류 처리
@@ -249,30 +284,17 @@ bash "$HARNISH_ROOT/scripts/record-asset.sh" \
 ```
 ✓ PRD 생성: docs/prd-{slug}.md
 
+포함된 섹션:
+✓ §4 구현 명세 (파일별 변경 + 플래그 분기)
+✓ §6 테스트 기준 (ON/OFF/롤백)
+✓ §7 가드레일 (필수/금지/권장)
+
 다음 단계:
-1. 검토해주세요
-2. 수정사항 있으면 알려주세요
-3. "구현 시작" → harnish가 태스크 분해
+- 검토 후 "구현 시작" 또는 "태스크 분해"를 요청하세요.
+- 검증이 필요하면 /ralphi로 PRD 정합성을 확인할 수 있습니다.
 ```
 
-**harnish 전달**: PRD 경로 + 피쳐명 + 플래그 키 + 롤아웃 전략 + 영향 파일
-
-## 11. PRD 파싱 규칙 (harnish용)
-
-| 섹션 | harnish 사용 |
-|------|-------------|
-| §1 | 컨텍스트 |
-| §2 | 플래그 키, 롤아웃 결정 |
-| §3 | 영향 범위 |
-| **§4** | **태스크 분해의 기반** |
-| **§5** | **주의사항** |
-| **§6** | **acceptance_criteria** |
-| **§7** | **프로젝트 제약** |
-| §8 | 참고만 |
-
-**불변 규칙**: §4, §6, §7 위치/형식 변경 = harnish 파싱 실패
-
-## 12. 맥락 예산 관리 (CONTEXT BUDGET)
+## 11. 맥락 예산 관리 (CONTEXT BUDGET)
 
 | 시점 | 읽는 파일 | 읽지 않는 파일 |
 |------|----------|-------------|

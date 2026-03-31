@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # validate-progress.sh — PROGRESS.md 구조 검증 스크립트
 #
-# 역할: PROGRESS.md가 task-driver가 파싱할 수 있는 올바른 구조인지 검증한다.
+# 역할: PROGRESS.md가 harnish가 파싱할 수 있는 올바른 구조인지 검증한다.
 #       세션 시작 시, 마일스톤 도달 시 자동 실행.
 #
 # 사용법:
@@ -61,9 +61,10 @@ done
 # 상태 이모지 검증
 # ═══════════════════════════════════════
 # 현재 상태에 유효한 이모지가 있는지 확인
-STATUS_LINE=$(grep -oP '현재 상태.*' "$PROGRESS_FILE" | head -1 || echo "")
+# POSIX 호환: grep -oP 대신 grep -oE (macOS BSD grep은 -P 미지원)
+STATUS_LINE=$(grep -oE '현재 상태.*' "$PROGRESS_FILE" | head -1 || echo "")
 if [[ -n "$STATUS_LINE" ]]; then
-    if ! echo "$STATUS_LINE" | grep -qP '(🟢|🟡|🔴|✅)'; then
+    if ! echo "$STATUS_LINE" | grep -qE '(🟢|🟡|🔴|✅)'; then
         WARNINGS+=("현재 상태에 유효한 상태 이모지(🟢🟡🔴✅) 없음")
     fi
 fi
@@ -75,7 +76,7 @@ fi
 DOING_SECTION=$(sed -n '/^## 🔨 진행 중 (Doing)/,/^## /p' "$PROGRESS_FILE" | head -n -1)
 
 # Doing에 Task가 있는지 확인
-if echo "$DOING_SECTION" | grep -qP '### Task'; then
+if echo "$DOING_SECTION" | grep -qE '### Task'; then
     DOING_REQUIRED=("시작" "현재" "마지막 액션" "다음 액션")
     for field in "${DOING_REQUIRED[@]}"; do
         if ! echo "$DOING_SECTION" | grep -q "$field"; then
