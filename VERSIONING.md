@@ -69,6 +69,13 @@ harnish/
 8. 태그 푸시: git push origin vX.Y.Z
 ```
 
+## 커밋 정책
+
+- `Co-Authored-By` 트레일러를 커밋 메시지에 포함하지 않는다
+- 커밋 author는 git config의 사용자 정보를 그대로 사용한다 (Claude 표기 금지)
+- 커밋 메시지는 [Conventional Commits](https://www.conventionalcommits.org/) 형식을 따른다
+  - `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
+
 ## Pre-commit 검증
 
 `scripts/pre-commit.sh`가 커밋 시 자동으로 검증:
