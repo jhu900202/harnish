@@ -12,6 +12,16 @@ description: >
 
 > 기획 요구사항을 받아서 "어떻게 만드는가"에 집중한 구현 명세 PRD를 만든다.
 
+## 환경 설정
+
+```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+```
+
+## 스킬 체인
+
+독립 호출 가능 (기획서 필요). 후속: "검토 후 '구현 시작'" → harnish, 또는 "/ralpi로 PRD 정합성 확인" → ralpi.
+
 ## Step 1: 요구사항 파싱
 
 기획서에서 4가지를 추출한다:
@@ -31,7 +41,7 @@ description: >
 
 ```bash
 if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/query-assets.sh" \
+  bash "${HARNISH_ROOT}/scripts/query-assets.sh" \
     --tags "{키워드}" --format inject \
     --base-dir "$(pwd)/.harnish"
 fi
@@ -117,7 +127,7 @@ PRD 섹션 구성:
 자산 기록:
 ```bash
 if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/record-asset.sh" \
+  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
     --type pattern --tags "{키워드}" \
     --title "{피쳐명} 구현 패턴" --content "{요약}" \
     --base-dir "$(pwd)/.harnish"

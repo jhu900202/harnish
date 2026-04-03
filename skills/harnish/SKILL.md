@@ -13,6 +13,21 @@ description: >
 
 > 판단하지 않는다. 규칙을 따른다. 길을 잃으면 harnish-current-work.json로 돌아온다. 막히면 에스컬레이션한다. 발명 금지.
 
+## 스킬 체인
+
+```
+drafti-architect (또는 drafti-feature) → harnish → ralpi
+```
+
+| 스킬 | 독립 호출 | 전제 조건 |
+|------|----------|----------|
+| drafti-architect | 가능 | 없음 (기술 문제만 있으면 됨) |
+| drafti-feature | 가능 | 기획서 필요 |
+| harnish | 가능 | docs/prd-*.md 또는 기존 harnish-current-work.json |
+| ralpi | 가능 | 검증 대상 파일/디렉토리 지정 |
+
+harnish 시작 시 PRD 없으면: "PRD가 없습니다. /drafti-architect 또는 /drafti-feature로 먼저 생성하세요."
+
 ## 환경 설정 (세션 시작 시 실행)
 
 > bash 3.2+, python3, jq. macOS/Linux.
@@ -97,6 +112,12 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 | 조건 목록 | 코드에서 각 조건 확인 | 모두 ✓ |
 | 혼합 | bash 먼저, 조건은 이후 | 둘 다 통과 |
 | 없음 | **에스컬레이션** (criteria 없이 Done 금지) | — |
+
+#### acceptance_criteria 비어있을 때 동작 시점
+
+1. **시딩 (Step 2)**: PRD §6에서 criteria 추출. 매핑 불가 시 → 사용자에게 즉시 질문: "Task {id}의 acceptance_criteria를 지정해주세요."
+2. **Todo→Doing 이동 시**: acceptance_criteria 필드가 비어있거나 없으면 → Doing 전환 전 에스컬레이션. Doing으로 넘기지 않음.
+3. **[PROGRESS] 단계**: Doing 상태에서 criteria가 비어있으면 → 즉시 에스컬레이션 (1회 시도도 하지 않음). 3회 실패 규칙과 별개.
 
 ### Todo→Doing 이동
 

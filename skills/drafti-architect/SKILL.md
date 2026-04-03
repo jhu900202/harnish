@@ -12,6 +12,16 @@ description: >
 
 > 기획 없이 기술 문제에서 설계 판단을 내리고 구현 가능한 PRD를 만든다.
 
+## 환경 설정
+
+```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+```
+
+## 스킬 체인
+
+독립 호출 가능. 후속: "검토 후 '구현 시작'" → harnish, 또는 "/ralpi로 PRD 정합성 확인" → ralpi.
+
 ## Step 1: 문제 명확화
 
 사용자 입력에서 5개 항목을 검사한다. 이미 답이 있으면 넘어간다.
@@ -33,7 +43,7 @@ description: >
 
 ```bash
 if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/query-assets.sh" \
+  bash "${HARNISH_ROOT}/scripts/query-assets.sh" \
     --tags "{추출 태그}" --format inject \
     --base-dir "$(pwd)/.harnish"
 fi
@@ -92,13 +102,13 @@ mkdir -p docs/
 ```bash
 if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
   # Decision 기록
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/record-asset.sh" \
+  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
     --type decision --tags "{태그}" \
     --title "{결정 한 줄}" --content "{선택 근거}" \
     --base-dir "$(pwd)/.harnish"
 
   # Guardrail 기록 (도출된 제약이 있을 때)
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/record-asset.sh" \
+  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
     --type guardrail --tags "{태그}" \
     --title "{규칙 한 줄}" --content "{위반 시 결과}" \
     --base-dir "$(pwd)/.harnish"

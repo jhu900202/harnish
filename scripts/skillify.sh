@@ -34,7 +34,7 @@ if [[ ! -f "$RAG_FILE" ]]; then
 fi
 
 # 해당 태그의 자산 수집
-ASSETS=$(jq -c "select(.tags[] == \"$TAG\") | select(.compressed != true)" "$RAG_FILE" 2>/dev/null | jq -s '.' 2>/dev/null || echo "[]")
+ASSETS=$(jq -c --arg t "$TAG" 'select(.tags[] == $t) | select(.compressed != true)' "$RAG_FILE" 2>/dev/null | jq -s '.' 2>/dev/null || echo "[]")
 COUNT=$(echo "$ASSETS" | jq 'length')
 
 if [[ "$COUNT" -eq 0 ]]; then

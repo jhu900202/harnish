@@ -8,5 +8,12 @@
   },
   "repository": "https://github.com/jazz1x/harnish",
   "license": "MIT",
-  "keywords": ["autonomous", "implementation", "prd", "verification", "skills"]
+  "keywords": ["autonomous", "implementation", "prd", "verification", "skills"],
+  "skills": [
+    { "name": "harnish", "path": "./skills/harnish" },
+    { "name": "drafti-architect", "path": "./skills/drafti-architect" },
+    { "name": "drafti-feature", "path": "./skills/drafti-feature" },
+    { "name": "ralpi", "path": "./skills/ralpi" }
+  ],
+  "hooks": "./hooks/hooks.json"
 }

@@ -49,19 +49,20 @@ fi
 
 COMPRESSED=0
 TMPFILE=$(mktemp)
+trap 'rm -f "$TMPFILE" "${TMPFILE}.new"' EXIT
 cp "$RAG_FILE" "$TMPFILE"
 
 while IFS= read -r target_tag; do
     [[ -z "$target_tag" ]] && continue
 
-    COUNT=$(jq -c "select(.compressed != true) | select(.tags[] == \"$target_tag\")" "$TMPFILE" 2>/dev/null | wc -l | xargs)
+    COUNT=$(jq -c --arg t "$target_tag" 'select(.compressed != true) | select(.tags[] == $t)' "$TMPFILE" 2>/dev/null | wc -l | xargs)
 
     if [[ "$COUNT" -lt "$THRESHOLD" && "$ALL" == "true" ]]; then
         continue
     fi
 
     # 원본에 compressed:true 추가
-    jq -c "if (.compressed != true) and (.tags | any(. == \"$target_tag\")) then . + {compressed: true} else . end" "$TMPFILE" > "${TMPFILE}.new"
+    jq -c --arg t "$target_tag" 'if (.compressed != true) and (.tags | any(. == $t)) then . + {compressed: true} else . end' "$TMPFILE" > "${TMPFILE}.new"
     mv "${TMPFILE}.new" "$TMPFILE"
 
     # 요약본 1건 추가
@@ -69,7 +70,7 @@ while IFS= read -r target_tag; do
         --arg type "pattern" \
         --arg slug "compressed-${target_tag}" \
         --arg title "[압축] ${target_tag} (${COUNT}건)" \
-        --argjson tags "[\"$target_tag\"]" \
+        --argjson tags "$(jq -n -c --arg t "$target_tag" '[$t]')" \
         --arg date "$(date +%Y-%m-%d)" \
         --arg scope "generic" \
         --arg body "TODO: Claude가 ${COUNT}건의 ${target_tag} 자산을 요약해야 합니다." \

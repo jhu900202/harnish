@@ -33,15 +33,19 @@ if [[ ! -f "$RAG_FILE" ]]; then
 fi
 
 # 원본 찾기
-ORIGINAL=$(jq -c "select(.slug == \"$SLUG\")" "$RAG_FILE" 2>/dev/null | head -1)
+ORIGINAL=$(jq -c --arg s "$SLUG" 'select(.slug == $s)' "$RAG_FILE" 2>/dev/null | head -1)
 
 if [[ -z "$ORIGINAL" ]]; then
     echo "오류: slug '$SLUG' 없음" >&2
     exit 1
 fi
 
-# scope를 generic으로 변경한 사본 추가
+# scope를 generic으로 변경한 사본 추가 (atomic write)
 ABSTRACTED=$(echo "$ORIGINAL" | jq -c '.scope = "generic" | .slug = .slug + "-generic" | .context = .context + " (추상화)"')
-echo "$ABSTRACTED" >> "$RAG_FILE"
+TMPRAG=$(mktemp "${RAG_FILE}.XXXXXX")
+trap 'rm -f "$TMPRAG"' EXIT
+cp "$RAG_FILE" "$TMPRAG"
+echo "$ABSTRACTED" >> "$TMPRAG"
+mv "$TMPRAG" "$RAG_FILE"
 
 echo "{\"status\":\"abstracted\",\"slug\":\"${SLUG}-generic\"}"

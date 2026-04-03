@@ -103,8 +103,12 @@ case "$TYPE" in
   decision)        RECORD=$(echo "$RECORD" | jq -c '. + {confidence: "medium"}');;
 esac
 
-# --- append ---
-echo "$RECORD" >> "$RAG_FILE"
+# --- append (atomic: copy + append + mv) ---
+TMPRAG=$(mktemp "${RAG_FILE}.XXXXXX")
+trap 'rm -f "$TMPRAG"' EXIT
+cp "$RAG_FILE" "$TMPRAG"
+echo "$RECORD" >> "$TMPRAG"
+mv "$TMPRAG" "$RAG_FILE"
 
 # --- RCA 검증 ---
 RCA_WARNINGS=()

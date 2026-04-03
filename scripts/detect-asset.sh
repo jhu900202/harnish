@@ -78,6 +78,22 @@ if [[ "$EVENT" == "PostToolUseFailure" ]]; then
         exit 0
     fi
 
+    # pending 파일 용량 제한 (최대 500줄, 초과 시 최근 250줄만 유지)
+    MAX_PENDING=500
+    if [[ -f "$PENDING_FILE" ]]; then
+        CURRENT_LINES=$(wc -l < "$PENDING_FILE" | xargs)
+        if [[ "$CURRENT_LINES" -ge "$MAX_PENDING" ]]; then
+            TRIMMED=$(mktemp)
+            tail -250 "$PENDING_FILE" > "$TRIMMED"
+            mv "$TRIMMED" "$PENDING_FILE"
+        fi
+    fi
+
+    # tool_output 크기 제한 (최대 2000자)
+    if [[ ${#TOOL_OUTPUT} -gt 2000 ]]; then
+        TOOL_OUTPUT="${TOOL_OUTPUT:0:2000}...(truncated)"
+    fi
+
     # 의미 있는 에러 → pending 기록
     PENDING_RECORD=$(jq -n -c \
         --arg event "$EVENT" \
