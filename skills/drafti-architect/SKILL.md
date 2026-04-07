@@ -12,11 +12,9 @@ description: >
 
 > Makes design decisions from technical problems and produces an implementation-ready PRD, without a planning document.
 
-## Environment Setup
+## Bash Convention
 
-```bash
-HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
-```
+Each Bash tool invocation is a fresh subshell. Every bash block re-declares `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"` inline; no persistent variables.
 
 ## Skill Chain
 
@@ -42,8 +40,9 @@ Inspect 5 items from the user input. Skip items that already have answers.
 Extract 3~5 tags from the problem (tech stack → problem domain → task type order).
 
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${HARNISH_ROOT}/scripts/query-assets.sh" \
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
     --tags "{extracted tags}" --format inject \
     --base-dir "$(pwd)/.harnish"
 fi
@@ -89,26 +88,35 @@ Required: State current situation → what the selection gains → **validity co
 | Medium (1~2 weeks) | 500~2000 lines | §1~§8 full | §9 |
 | Large (1 month+) | 2000+ lines | §1~§8 + phase splitting | Schedule |
 
-If unclear, assume **medium scale**. Read `references/prd-template.md` and write accordingly.
+If unclear → **ask the user**: *"Scale: small (1-2 days), medium (1-2 weeks), or large (1 month+)?"* No silent assumption. Read `references/prd-template.md` and write accordingly.
 
 ## Step 5: Save + Asset Recording
 
+**HITL** (before any file write):
+> "PRD draft ready: §{sections} / {scale}. Save to `docs/prd-{slug}.md`? (y / n / edit-slug)"
+
+- `n` → end. PRD not saved.
+- `edit-slug` → ask for slug, then `y`.
+- `y` → proceed with save below.
+
+Save PRD (only after `y`):
 ```bash
 mkdir -p docs/
-# PRD save: docs/prd-{slug}.md
+# Write PRD content to docs/prd-{slug}.md
 ```
 
 Asset recording (harnish ecosystem mode):
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
   # Decision recording
-  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
     --type decision --tags "{tags}" \
     --title "{one-line decision}" --content "{selection rationale}" \
     --base-dir "$(pwd)/.harnish"
 
   # Guardrail recording (when derived constraints exist)
-  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
     --type guardrail --tags "{tags}" \
     --title "{one-line rule}" --content "{consequence of violation}" \
     --base-dir "$(pwd)/.harnish"
@@ -132,9 +140,23 @@ Next: "start implementation" after review, or /ralphi for consistency check.
 
 Decide based on presence/absence of a planning document. If uncertain, ask the user "Do you have a planning document?"
 
+## Context Budget
+
+| When | Reads |
+|---|---|
+| Step 1 (Clarification) | User input only |
+| Step 2 (Asset query) | `.harnish/assets/*.jsonl` filtered by tags. Skip if `.harnish/` absent. |
+| Step 3 (Alternatives) | `references/design-decision.md` |
+| Step 4 (Selection + PRD) | `references/prd-template.md` |
+| Step 5 (Save + record) | None (writes only — `docs/prd-*.md` and `.harnish/assets/*.jsonl`) |
+
+Load **at most 1** reference at a time; switch when moving phase.
+
 ## Prohibited
 
 - Finishing with only 1 alternative (minimum 2)
 - Groundless selection like "~is better"
 - Finalizing a decision without validity conditions
-- Loading 2 references simultaneously (load 1 at a time, switch per phase)
+- Saving PRD without explicit user confirmation in Step 5
+- Silently assuming PRD scale when unclear
+- Loading 2 references simultaneously

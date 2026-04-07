@@ -12,11 +12,9 @@ description: >
 
 > 기획 요구사항을 받아서 "어떻게 만드는가"에 집중한 구현 명세 PRD를 만든다.
 
-## 환경 설정
+## Bash 컨벤션
 
-```bash
-HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
-```
+각 Bash 도구 호출은 새 subshell. 모든 bash 블록은 자기 안에서 `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"`를 다시 선언; 영구 변수 없음.
 
 ## 스킬 체인
 
@@ -33,15 +31,18 @@ HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
 | 사용자 흐름 | Happy path + 분기 |
 | 비기능 요구사항 | 성능, 보안, 접근성 |
 
-1~2개 빠졌으면 사용자에게 확인. 모두 있으면 다음.
+**게이트**: 4개 모두 있어야 다음 단계로.
+- 0개 빠짐 → Step 2로.
+- 1개 이상 빠짐 → 사용자에게 빠진 항목을 묻는다. 기본값 가정 금지. 사용자 응답 후 재평가; 여전히 빠지면 → 재질문.
 
 ## Step 2: 기존 자산 조회
 
 핵심 키워드 3~5개 추출 후:
 
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${HARNISH_ROOT}/scripts/query-assets.sh" \
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
     --tags "{키워드}" --format inject \
     --base-dir "$(pwd)/.harnish"
 fi
@@ -76,7 +77,7 @@ fi
 - 킬스위치 조건 (에러율 > 1%, p99 > 500ms 등)
 - 롤백 계획
 
-불필요 시 → PRD §2 생략, §4 구현 명세로 바로 진행.
+불필요 시 → §2 (플래그 설계)는 출력 PRD에서 **생략**됨. 섹션 번호 `§1, §3, §4, ...`는 변경 없음 (재번호 금지). Step 5로 진행.
 
 ## Step 5: 구현 명세 작성
 
@@ -107,16 +108,24 @@ fi
 
 ## Step 7: 저장 + 자산 기록
 
+**HITL** (어떤 파일 쓰기보다도 먼저):
+> "PRD 초안 준비됨: §{포함 섹션} ({플래그 있음/없음}). `docs/prd-{slug}.md`에 저장할까요? (y / n / edit-slug)"
+
+- `n` → 종료. PRD 저장 안 됨.
+- `edit-slug` → slug 묻기, 그 후 `y`.
+- `y` → 아래 저장 진행.
+
+PRD 저장 (`y` 이후만):
 ```bash
 mkdir -p docs/
-# PRD 저장: docs/prd-{slug}.md
+# PRD 내용을 docs/prd-{slug}.md에 작성
 ```
 
 PRD 섹션 구성:
 | 섹션 | 내용 |
 |------|------|
 | §1 | 기획 요약 |
-| §2 | 플래그 설계 ← **플래그 필요 시만** |
+| §2 | 플래그 설계 ← **플래그 불필요 시 생략; §3+ 번호 변경 없음** |
 | §3 | 기술 설계 (영향 파일) |
 | §4 | 구현 명세 |
 | §5 | 엣지케이스 |
@@ -126,8 +135,9 @@ PRD 섹션 구성:
 
 자산 기록:
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
     --type pattern --tags "{키워드}" \
     --title "{피쳐명} 구현 패턴" --content "{요약}" \
     --base-dir "$(pwd)/.harnish"
@@ -149,8 +159,24 @@ fi
 | "이 기획서 기반으로 PRD" | 기획 문서 있음 | → drafti-feature |
 | "이 문제 어떻게 설계할까" | 기획 없음 | → drafti-architect |
 
+## Context Budget
+
+| 시점 | 읽는 것 |
+|---|---|
+| Step 1 (파싱) | 기획 문서, 프로젝트 설정 파일 (`package.json`, `pyproject.toml` 등) |
+| Step 2 (자산 조회) | `.harnish/assets/*.jsonl`을 태그로 필터. `.harnish/` 없으면 생략. |
+| Step 3 (코드베이스) | 키워드 매칭 파일만. 전체 트리 읽기 금지. |
+| Step 4 (플래그) | `references/feature-flag-patterns.md` (플래그 필요 시만) |
+| Step 5 (명세) | `references/prd-template.md` |
+| Step 6 (테스트) | 없음 |
+| Step 7 (저장 + 기록) | 없음 (쓰기만 — `docs/prd-*.md` 와 `.harnish/assets/*.jsonl`) |
+
+reference는 **동시에 1개**까지; 단계 전환 시 교체.
+
 ## 금지
 
 - 기획서 없이 요구사항 추측 (없으면 drafti-architect로)
 - 불필요한 피쳐플래그 강제 (Step 4 판단표 따를 것)
-- reference 2개 동시 로드 (1개씩 시점별 전환)
+- Step 7에서 사용자 명시 확인 없이 PRD 저장
+- Step 1에서 4개 필수 항목 중 하나라도 빠진 채로 진행
+- reference 2개 동시 로드

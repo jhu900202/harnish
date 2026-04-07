@@ -28,20 +28,13 @@ drafti-architect (or drafti-feature) → harnish → ralphi
 
 When harnish starts without a PRD: "No PRD found. Please create one first with /drafti-architect or /drafti-feature."
 
-## Environment Setup (Runs at Session Start)
+## Bash Convention
 
 > bash 3.2+, python3, jq. macOS/Linux.
 
-```bash
-HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
-VALIDATE_SCRIPT="$HARNISH_ROOT/scripts/validate-progress.sh"
-LOOP_STEP_SCRIPT="$HARNISH_ROOT/scripts/loop-step.sh"
-CHECK_VIOL_SCRIPT="$HARNISH_ROOT/scripts/check-violations.sh"
-COMPRESS_SCRIPT="$HARNISH_ROOT/scripts/compress-progress.sh"
-REPORT_SCRIPT="$HARNISH_ROOT/scripts/progress-report.sh"
-TASK_COMPLETE_COUNT=0
-COMPRESS_EVERY_N=5
-```
+Each Bash tool invocation is a fresh subshell — variables do **not** survive across calls. Every bash block in this skill must re-declare `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"` inline before using any script path. There are no persistent script-name aliases; full paths (`$HARNISH_ROOT/scripts/{name}.sh`) are used directly.
+
+State counters (`TASK_COMPLETE_COUNT`, etc.) are tracked by the LLM in conversation memory, not in shell variables. `COMPRESS_EVERY_N = 5`.
 
 ## Step 1: Mode Detection
 
@@ -52,13 +45,14 @@ COMPRESS_EVERY_N=5
 | "자산 현황/압축/기억해/스킬로" | Experience | Step 5 | `thresholds.md` |
 | harnish-current-work.json exists + session start | Restore | Step 4 | — |
 
-Load **at most 2 references** at a time.
+Load **at most 2 references** at a time. (See Context Budget below.)
 
 ## Step 2: Seeding (PRD → harnish-current-work.json)
 
 1. Verify PRD file: `docs/prd-{name}.md`. Confirm existence of §4 (Implementation Spec), §6 (Tests), §7 (Guardrails)
 2. Query existing assets:
    ```bash
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
    bash "$HARNISH_ROOT/scripts/query-assets.sh" \
      --tags "{key}" --types guardrail --format text \
      --base-dir "$(pwd)/.harnish"
@@ -67,7 +61,8 @@ Load **at most 2 references** at a time.
 4. Task decomposition: **1 task = 1 file | 1 function | 1 test | 1 config**
 5. Read `references/progress-template.md` and generate harnish-current-work.json → validate:
    ```bash
-   bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+   bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
    ```
 6. Report to user: "Seeding complete — {N} Phases, {M} Tasks — review and say 'run loop'"
 7. → Proceed to Step 3
@@ -77,8 +72,9 @@ Load **at most 2 references** at a time.
 ### Entry
 
 ```bash
-bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json
-bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+bash "$HARNISH_ROOT/scripts/loop-step.sh" .harnish/harnish-current-work.json
 ```
 - `STATUS=ALL_DONE` → report completion → STOP
 - `STATUS=NO_DOING` → move first Todo to Doing (see "Todo→Doing" below)
@@ -88,7 +84,11 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 **[READ]**
 - Read the doing task's objective, strategy, files, and prohibitions from harnish-current-work.json
-- Query assets: `bash "$HARNISH_ROOT/scripts/query-assets.sh" --tags "{task-id},{phase}" --format inject --base-dir "$(pwd)/.harnish"`
+- Query assets:
+  ```bash
+  HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" --tags "{task-id},{phase}" --format inject --base-dir "$(pwd)/.harnish"
+  ```
 
 **[ACT]**
 - Create/modify files according to the guide
@@ -97,7 +97,10 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 **[LOG]** (every 3 actions)
 - Update harnish-current-work.json doing: current / last action / next action
-- `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json`
+- ```bash
+  HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+  ```
 
 **[PROGRESS]** Run acceptance_criteria:
 - **Pass** → move Doing→Done → record asset (if applicable) → TASK_COMPLETE_COUNT += 1 → move next Todo→Doing → repeat loop
@@ -115,9 +118,11 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 #### Behavior When acceptance_criteria Is Empty
 
-1. **Seeding (Step 2)**: Extract criteria from PRD §6. If mapping is not possible → immediately ask the user: "Please specify acceptance_criteria for Task {id}."
-2. **Todo→Doing transition**: If the acceptance_criteria field is empty or missing → escalate before transitioning to Doing. Do not move to Doing.
-3. **[PROGRESS] phase**: If criteria is empty while in Doing state → immediately escalate (do not attempt even once). Separate from the 3-failure rule.
+The empty-criteria check is an **entry gate at every transition into Doing**, not a post-execution check:
+
+1. **Seeding (Step 2)**: Extract criteria from PRD §6. If mapping is not possible → immediately ask the user: "Please specify acceptance_criteria for Task {id}." Do not seed the task without criteria.
+2. **Todo→Doing transition**: If `acceptance_criteria` is empty or missing → escalate **before** transitioning to Doing. The task does not enter Doing.
+3. **Mid-session edits**: If a task already in Doing has its criteria emptied (rare; usually a user manual edit) → escalate immediately on next loop entry, before [ACT]. This is separate from the 3-failure rule.
 
 ### Todo→Doing Transition
 
@@ -125,14 +130,20 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 2. Verify `depends_on` is satisfied (all prerequisite Tasks exist in `.done.phases`)
 3. Update harnish-current-work.json: `.doing.task = {id, title, started_at, current, next_action, blocker:null, retry_count:0, context}`, remove the task from `.todo`
 4. Update `.metadata.status`
-5. `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json`
+5. ```bash
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+   bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+   ```
 
 ### Doing→Done Transition
 
 1. Find the same phase in `.done.phases` (add a new Phase if not found)
 2. Add completed task: `{id, title, result: "one-line summary", files_changed, verification, duration}`
 3. `.doing.task = null`, `.stats.completed_tasks += 1`
-4. `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json`
+4. ```bash
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+   bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+   ```
 
 ### On Phase Completion (Milestone)
 
@@ -144,15 +155,16 @@ Next: Phase {N+1} — Shall we continue?
 
 Run RAG compression:
 ```bash
-bash "$COMPRESS_SCRIPT" .harnish/harnish-current-work.json --trigger milestone --phase {N}
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/compress-progress.sh" .harnish/harnish-current-work.json --trigger milestone --phase {N}
 ```
 
-Counter-based compression (every COMPRESS_EVERY_N):
+Counter-based compression (LLM tracks `TASK_COMPLETE_COUNT` in conversation; every 5):
 ```bash
-if (( TASK_COMPLETE_COUNT % COMPRESS_EVERY_N == 0 )); then
-  bash "$COMPRESS_SCRIPT" .harnish/harnish-current-work.json --trigger count
-fi
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/compress-progress.sh" .harnish/harnish-current-work.json --trigger count
 ```
+Run the above only when `TASK_COMPLETE_COUNT % 5 == 0`. The decision to run is the LLM's; the bash invocation itself does not check the counter.
 
 Wait for user response → "continue" → next Phase → repeat loop. All Phases Done → completion report.
 
@@ -169,10 +181,13 @@ Options: A. {A} / B. {B}
 
 When harnish-current-work.json exists + new session starts:
 
-1. `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json` → verify structure integrity
-2. `bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json` → extract coordinates
-3. If Doing exists, resume from "next action" / otherwise first Todo Task
-4. Report then → enter Step 3 loop:
+```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json   # verify structure integrity
+bash "$HARNISH_ROOT/scripts/loop-step.sh" .harnish/harnish-current-work.json            # extract coordinates
+```
+
+If Doing exists, resume from "next action" / otherwise first Todo Task. Report then → enter Step 3 loop:
    ```
    🔄 Session restored
    Current: Phase {N} / Task {ID} — {title}
@@ -195,6 +210,7 @@ When harnish-current-work.json exists + new session starts:
 
 Recording:
 ```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
 bash "$HARNISH_ROOT/scripts/record-asset.sh" \
   --type {type} --tags "{task-id},{phase}" \
   --title "{one line}" --content "{content}" \
@@ -211,6 +227,21 @@ bash "$HARNISH_ROOT/scripts/record-asset.sh" \
 | "스킬로 만들어" / "make it a skill" | skillify.sh |
 | "자산 품질" / "asset quality" | quality-gate.sh |
 | "위반 확인" / "check violations" | check-violations.sh |
+
+## Context Budget
+
+| When | Reads |
+|---|---|
+| Step 1 (Mode Detection) | Mode-specific references only (max 2): see Mode Detection table |
+| Step 2 (Seeding) | PRD file (`docs/prd-*.md`), `references/progress-template.md`, query-assets output |
+| Step 3 [READ] | Current task fields from `harnish-current-work.json`, query-assets output (filtered by task tags) |
+| Step 3 [ACT] | Files referenced by current task only — no exploration outside scope |
+| Step 3 [LOG] | None (write-only) |
+| Step 3 [PROGRESS] | Test outputs only |
+| Step 4 (Restore) | `harnish-current-work.json`, no source code |
+| Step 5 (Experience) | `references/thresholds.md`, asset query output |
+
+`Load at most 2 references at a time.` Other references must wait for a phase switch.
 
 ## Guardrails
 
@@ -231,4 +262,8 @@ bash "$HARNISH_ROOT/scripts/record-asset.sh" \
 
 - Todo is empty and no Doing → completion report → STOP
 - User says "stop" → record current state in harnish-current-work.json → STOP
-- On session end → `bash "$CHECK_VIOL_SCRIPT" .harnish/harnish-current-work.json`
+- On session end →
+  ```bash
+  HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  bash "$HARNISH_ROOT/scripts/check-violations.sh" .harnish/harnish-current-work.json
+  ```

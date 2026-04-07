@@ -28,20 +28,13 @@ drafti-architect (또는 drafti-feature) → harnish → ralphi
 
 harnish 시작 시 PRD 없으면: "PRD가 없습니다. /drafti-architect 또는 /drafti-feature로 먼저 생성하세요."
 
-## 환경 설정 (세션 시작 시 실행)
+## Bash 컨벤션
 
 > bash 3.2+, python3, jq. macOS/Linux.
 
-```bash
-HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
-VALIDATE_SCRIPT="$HARNISH_ROOT/scripts/validate-progress.sh"
-LOOP_STEP_SCRIPT="$HARNISH_ROOT/scripts/loop-step.sh"
-CHECK_VIOL_SCRIPT="$HARNISH_ROOT/scripts/check-violations.sh"
-COMPRESS_SCRIPT="$HARNISH_ROOT/scripts/compress-progress.sh"
-REPORT_SCRIPT="$HARNISH_ROOT/scripts/progress-report.sh"
-TASK_COMPLETE_COUNT=0
-COMPRESS_EVERY_N=5
-```
+각 Bash 도구 호출은 새 subshell — 변수는 호출 간 **살아남지 않는다**. 이 스킬의 모든 bash 블록은 자기 안에서 `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"`를 다시 선언한 후 스크립트 경로를 사용한다. 영구 alias 없음; full path (`$HARNISH_ROOT/scripts/{name}.sh`) 직접 사용.
+
+상태 카운터(`TASK_COMPLETE_COUNT` 등)는 LLM이 대화 메모리에서 추적, 셸 변수 아님. `COMPRESS_EVERY_N = 5`.
 
 ## Step 1: 모드 판별
 
@@ -52,13 +45,14 @@ COMPRESS_EVERY_N=5
 | "자산 현황/압축/기억해/스킬로" | 경험 | Step 5 | `thresholds.md` |
 | harnish-current-work.json 존재 + 세션 시작 | 복원 | Step 4 | — |
 
-reference는 **동시에 2개까지만** 로드.
+reference는 **동시에 2개까지만** 로드. (아래 Context Budget 참조.)
 
 ## Step 2: 시딩 (PRD → harnish-current-work.json)
 
 1. PRD 파일 확인: `docs/prd-{name}.md`. §4(구현명세), §6(테스트), §7(가드레일) 존재 확인
 2. 기존 자산 조회:
    ```bash
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
    bash "$HARNISH_ROOT/scripts/query-assets.sh" \
      --tags "{키}" --types guardrail --format text \
      --base-dir "$(pwd)/.harnish"
@@ -67,7 +61,8 @@ reference는 **동시에 2개까지만** 로드.
 4. 태스크 분해: **1 태스크 = 1파일 | 1함수 | 1테스트 | 1설정**
 5. `references/progress-template.md`를 읽고 harnish-current-work.json 생성 → 검증:
    ```bash
-   bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+   bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
    ```
 6. 사용자에게 보고: "Phase {N}개, Task {M}개 시딩 완료 — 확인 후 '루프 돌려'"
 7. → Step 3으로
@@ -77,8 +72,9 @@ reference는 **동시에 2개까지만** 로드.
 ### 진입
 
 ```bash
-bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json
-bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+bash "$HARNISH_ROOT/scripts/loop-step.sh" .harnish/harnish-current-work.json
 ```
 - `STATUS=ALL_DONE` → 완료 보고 → STOP
 - `STATUS=NO_DOING` → 첫 Todo를 Doing으로 이동 (아래 "Todo→Doing" 참조)
@@ -88,7 +84,11 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 **[READ]**
 - harnish-current-work.json doing 태스크의 목적·전략·파일·금지사항 읽기
-- 자산 조회: `bash "$HARNISH_ROOT/scripts/query-assets.sh" --tags "{task-id},{phase}" --format inject --base-dir "$(pwd)/.harnish"`
+- 자산 조회:
+  ```bash
+  HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" --tags "{task-id},{phase}" --format inject --base-dir "$(pwd)/.harnish"
+  ```
 
 **[ACT]**
 - 가이드에 따라 파일 생성/수정
@@ -97,7 +97,10 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 **[LOG]** (3액션마다)
 - harnish-current-work.json doing 갱신: 현재 / 마지막 액션 / 다음 액션
-- `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json`
+- ```bash
+  HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+  ```
 
 **[PROGRESS]** acceptance_criteria 실행:
 - **통과** → Doing→Done 이동 → 자산 기록(해당 시) → TASK_COMPLETE_COUNT += 1 → 다음 Todo→Doing → 루프 반복
@@ -115,9 +118,11 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 #### acceptance_criteria 비어있을 때 동작 시점
 
-1. **시딩 (Step 2)**: PRD §6에서 criteria 추출. 매핑 불가 시 → 사용자에게 즉시 질문: "Task {id}의 acceptance_criteria를 지정해주세요."
-2. **Todo→Doing 이동 시**: acceptance_criteria 필드가 비어있거나 없으면 → Doing 전환 전 에스컬레이션. Doing으로 넘기지 않음.
-3. **[PROGRESS] 단계**: Doing 상태에서 criteria가 비어있으면 → 즉시 에스컬레이션 (1회 시도도 하지 않음). 3회 실패 규칙과 별개.
+empty-criteria 검사는 **Doing 진입 게이트**이지 사후 검사가 아니다:
+
+1. **시딩 (Step 2)**: PRD §6에서 criteria 추출. 매핑 불가 시 → 사용자에게 즉시 질문: "Task {id}의 acceptance_criteria를 지정해주세요." criteria 없이 시딩 금지.
+2. **Todo→Doing 이동 시**: acceptance_criteria가 비어있거나 없으면 → Doing 전환 **전** 에스컬레이션. Task는 Doing으로 진입하지 않음.
+3. **세션 중 수정**: 이미 Doing인 task의 criteria가 비워지면 (드물게 사용자 수동 편집) → 다음 루프 진입 시 [ACT] 전 즉시 에스컬레이션. 3회 실패 규칙과 별개.
 
 ### Todo→Doing 이동
 
@@ -125,14 +130,20 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 2. `depends_on` 충족 확인 (선행 Task 모두 `.done.phases`에 존재)
 3. harnish-current-work.json 갱신: `.doing.task = {id, title, started_at, current, next_action, blocker:null, retry_count:0, context}`, `.todo`에서 해당 task 제거
 4. `.metadata.status` 업데이트
-5. `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json`
+5. ```bash
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+   bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+   ```
 
 ### Doing→Done 이동
 
 1. `.done.phases`에서 같은 phase 찾기 (없으면 새 Phase 추가)
 2. 완료 태스크 추가: `{id, title, result: "1줄 요약", files_changed, verification, duration}`
 3. `.doing.task = null`, `.stats.completed_tasks += 1`
-4. `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json`
+4. ```bash
+   HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+   bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json
+   ```
 
 ### Phase 완료 시 (마일스톤)
 
@@ -144,15 +155,16 @@ bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json
 
 RAG 압축 실행:
 ```bash
-bash "$COMPRESS_SCRIPT" .harnish/harnish-current-work.json --trigger milestone --phase {N}
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/compress-progress.sh" .harnish/harnish-current-work.json --trigger milestone --phase {N}
 ```
 
-카운터 기반 압축 (COMPRESS_EVERY_N 마다):
+카운터 기반 압축 (LLM이 `TASK_COMPLETE_COUNT`를 대화에서 추적; 5마다):
 ```bash
-if (( TASK_COMPLETE_COUNT % COMPRESS_EVERY_N == 0 )); then
-  bash "$COMPRESS_SCRIPT" .harnish/harnish-current-work.json --trigger count
-fi
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/compress-progress.sh" .harnish/harnish-current-work.json --trigger count
 ```
+위는 `TASK_COMPLETE_COUNT % 5 == 0`일 때만 실행. 실행 여부 결정은 LLM의 책임이고, bash 호출 자체가 카운터를 검사하지 않는다.
 
 사용자 응답 대기 → "계속" → 다음 Phase → 루프 반복. 모든 Phase Done → 완료 보고.
 
@@ -169,15 +181,18 @@ fi
 
 harnish-current-work.json 존재 + 새 세션 시작 시:
 
-1. `bash "$VALIDATE_SCRIPT" .harnish/harnish-current-work.json` → 구조 정상 확인
-2. `bash "$LOOP_STEP_SCRIPT" .harnish/harnish-current-work.json` → 좌표 추출
-3. Doing 있으면 "다음 액션"부터 재개 / 없으면 Todo 첫 Task
-4. 보고 후 → Step 3 루프 진입:
-   ```
-   🔄 세션 복원 완료
-   현재: Phase {N} / Task {ID} — {제목}
-   다음: {next_action}
-   ```
+```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/validate-progress.sh" .harnish/harnish-current-work.json   # 구조 정상 확인
+bash "$HARNISH_ROOT/scripts/loop-step.sh" .harnish/harnish-current-work.json            # 좌표 추출
+```
+
+Doing 있으면 "다음 액션"부터 재개 / 없으면 Todo 첫 Task. 보고 후 → Step 3 루프 진입:
+```
+🔄 세션 복원 완료
+현재: Phase {N} / Task {ID} — {제목}
+다음: {next_action}
+```
 
 ## Step 5: 경험 축적
 
@@ -195,6 +210,7 @@ harnish-current-work.json 존재 + 새 세션 시작 시:
 
 기록:
 ```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
 bash "$HARNISH_ROOT/scripts/record-asset.sh" \
   --type {유형} --tags "{task-id},{phase}" \
   --title "{한 줄}" --content "{내용}" \
@@ -227,8 +243,27 @@ bash "$HARNISH_ROOT/scripts/record-asset.sh" \
 - scope 밖 파일의 비관련 리팩토링 금지
 - harnish-current-work.json 삭제 또는 done 객체 직접 수정 금지
 
+## Context Budget
+
+| 시점 | 읽는 것 |
+|---|---|
+| Step 1 (모드 판별) | 모드별 reference만 (최대 2개): 모드 판별 표 참조 |
+| Step 2 (시딩) | PRD 파일 (`docs/prd-*.md`), `references/progress-template.md`, query-assets 출력 |
+| Step 3 [READ] | `harnish-current-work.json`의 현재 task 필드, query-assets 출력 (task 태그 필터) |
+| Step 3 [ACT] | 현재 task가 참조하는 파일만 — scope 밖 탐색 금지 |
+| Step 3 [LOG] | 없음 (쓰기 전용) |
+| Step 3 [PROGRESS] | 테스트 출력만 |
+| Step 4 (복원) | `harnish-current-work.json`만, 소스 코드 X |
+| Step 5 (경험) | `references/thresholds.md`, asset query 출력 |
+
+`reference는 동시에 2개까지`. 다른 reference는 phase 전환 시까지 대기.
+
 ## 종료 조건
 
 - Todo 비어있고 Doing 없음 → 완료 보고 → STOP
 - 사용자 "중단" → harnish-current-work.json에 현재 상태 기록 → STOP
-- 세션 종료 시 → `bash "$CHECK_VIOL_SCRIPT" .harnish/harnish-current-work.json`
+- 세션 종료 시 →
+  ```bash
+  HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+  bash "$HARNISH_ROOT/scripts/check-violations.sh" .harnish/harnish-current-work.json
+  ```

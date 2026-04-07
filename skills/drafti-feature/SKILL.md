@@ -13,11 +13,9 @@ description: >
 
 > Takes planning requirements and produces an implementation spec PRD focused on "how to build it."
 
-## Environment Setup
+## Bash Convention
 
-```bash
-HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
-```
+Each Bash tool invocation is a fresh subshell. Every bash block re-declares `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"` inline; no persistent variables.
 
 ## Skill Chain
 
@@ -34,15 +32,18 @@ Extract 4 items from the planning document:
 | User Flow | Happy path + branches |
 | Non-Functional Requirements | Performance, security, accessibility |
 
-If 1~2 items are missing, confirm with the user. If all present, proceed.
+**Gate**: all 4 items must be present before proceeding.
+- 0 missing → proceed to Step 2.
+- 1+ missing → ask the user for the missing items. Do not assume defaults. Re-evaluate after the user replies; if still missing → re-ask.
 
 ## Step 2: Existing Asset Query
 
 Extract 3~5 core keywords, then:
 
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${HARNISH_ROOT}/scripts/query-assets.sh" \
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
     --tags "{keywords}" --format inject \
     --base-dir "$(pwd)/.harnish"
 fi
@@ -77,7 +78,7 @@ If flag needed → read `references/feature-flag-patterns.md` and:
 - Kill switch conditions (error rate > 1%, p99 > 500ms, etc.)
 - Rollback plan
 
-If not needed → skip PRD §2, proceed directly to §4 implementation spec.
+If not needed → §2 (Flag design) is **omitted** from the output PRD. Section numbers `§1, §3, §4, ...` remain unchanged (do not renumber). Proceed to Step 5.
 
 ## Step 5: Implementation Spec Writing
 
@@ -108,16 +109,24 @@ Read `references/prd-template.md` and write accordingly.
 
 ## Step 7: Save + Asset Recording
 
+**HITL** (before any file write):
+> "PRD draft ready: §{sections present} ({with/without} flag). Save to `docs/prd-{slug}.md`? (y / n / edit-slug)"
+
+- `n` → end. PRD not saved.
+- `edit-slug` → ask for slug, then `y`.
+- `y` → proceed with save below.
+
+Save PRD (only after `y`):
 ```bash
 mkdir -p docs/
-# PRD save: docs/prd-{slug}.md
+# Write PRD content to docs/prd-{slug}.md
 ```
 
 PRD section structure:
 | Section | Content |
 |------|------|
 | §1 | Planning summary |
-| §2 | Flag design ← **only when flag is needed** |
+| §2 | Flag design ← **omitted when flag is not needed; numbering of §3+ unchanged** |
 | §3 | Technical design (affected files) |
 | §4 | Implementation spec |
 | §5 | Edge cases |
@@ -127,8 +136,9 @@ PRD section structure:
 
 Asset recording:
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
     --type pattern --tags "{keywords}" \
     --title "{feature name} implementation pattern" --content "{summary}" \
     --base-dir "$(pwd)/.harnish"
@@ -150,8 +160,24 @@ Next: "start implementation" after review, or /ralphi for consistency check.
 | "Create PRD based on this planning doc" | Planning document exists | → drafti-feature |
 | "How should I design this problem" | No planning doc | → drafti-architect |
 
+## Context Budget
+
+| When | Reads |
+|---|---|
+| Step 1 (Parsing) | Planning document, project config files (`package.json`, `pyproject.toml`, etc.) |
+| Step 2 (Asset query) | `.harnish/assets/*.jsonl` filtered by tags. Skip if `.harnish/` absent. |
+| Step 3 (Codebase) | Keyword-matched files only. No full project tree read. |
+| Step 4 (Flag) | `references/feature-flag-patterns.md` (only if flag needed) |
+| Step 5 (Spec) | `references/prd-template.md` |
+| Step 6 (Tests) | None |
+| Step 7 (Save + record) | None (writes only — `docs/prd-*.md` and `.harnish/assets/*.jsonl`) |
+
+Load **at most 1** reference at a time; switch when moving phase.
+
 ## Prohibited
 
 - Guessing requirements without a planning doc (use drafti-architect instead)
 - Forcing unnecessary feature flags (follow the Step 4 assessment table)
-- Loading 2 references simultaneously (load 1 at a time, switch per phase)
+- Saving PRD without explicit user confirmation in Step 7
+- Proceeding past Step 1 with any of the 4 required items missing
+- Loading 2 references simultaneously

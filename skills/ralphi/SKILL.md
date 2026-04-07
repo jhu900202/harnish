@@ -21,7 +21,7 @@ Otherwise → **HITL** (report only and wait)
 
 - File path given → **File scope** → Step 3A
 - Directory given → **Directory scope** → Step 3B
-- Nothing given → **Ask the user for scope. No guessing.** Do not run git diff on your own.
+- Nothing given → **Ask the user**: *"Provide a file path or directory path. (`everything` / `all` are not valid scopes — pick a concrete target.)"* No guessing. Do not run git diff on your own.
 
 ## Step 3A: File Inspection
 
@@ -30,7 +30,7 @@ Otherwise → **HITL** (report only and wait)
    - `*/SKILL.md` (check frontmatter name:) → `criteria-skill.md`
    - `*.sh` (check shebang #!/) → `criteria-script.md`
    - `.py .ts .js .go` etc. source code → `criteria-code.md`
-   - Unclear → **Ask the user. No guessing.**
+   - Unclear → **Ask the user**: *"Detected file `{path}` — what type? (prd / skill / script / code / other?)"* No guessing.
 2. Load only **1** criteria from `references/`. Do not read other criteria.
 3. Static analysis (structure, format, contract violations)
 4. Dynamic execution (if script/code)
@@ -39,7 +39,7 @@ Otherwise → **HITL** (report only and wait)
 
 ## Step 3B: Project/Directory Inspection
 
-1. Run tests. Tests before reading code. If test runner is unknown, **ask the user. No guessing.** Tool not installed (command not found) → SKIP that check + warn. **Do not attempt installation.**
+1. Run tests. Tests before reading code. If test runner is unknown, **ask the user**: *"What is the test command? (e.g. `pytest`, `npm test`, `go test ./...`, `cargo test`, custom?)"* No guessing. Tool not installed (command not found) → SKIP that check + warn. **Do not attempt installation.**
 2. List changed files (git diff)
 3. Analyze **only the diff** of each file. **Do not read entire files.**
 4. Scenario walkthrough (intent vs implementation). Read only the relevant function. No call graph tracing.
