@@ -2,182 +2,172 @@
 name: forki
 version: 0.0.1
 description: >
-  Decision-forcing skill. Reduces any complex problem to a binary fork
-  via role decomposition (Decision / Execution / Validation / Recovery),
-  surfaces trade-offs, and forces a single choice.
-  Triggers: "결정", "선택", "어느 쪽", "두 길", "갈피", "어떻게 가야",
-  "trade-off", "둘 중 뭐", "비교가 안 돼",
-  "decide", "decision", "choose between", "fork", "which path", "torn between".
-  Scope: any domain (tech, design, process, life). Pre-PRD, pre-implementation.
+  Decision-forcing skill. Reduces a problem to a binary fork via role decomposition
+  (Decision / Execution / Validation / Recovery), surfaces trade-offs, forces a single choice.
+  Triggers: "결정", "선택", "어느 쪽", "두 길", "갈피", "trade-off", "둘 중 뭐",
+  "이전에 결정한", "다시 결정", "결정 기록",
+  "decide", "decision", "choose between", "fork", "torn between",
+  "past decision", "decided before", "record decision".
+  Scope: any domain. Pre-PRD, pre-implementation.
 ---
 
 # forki — Decision Forcing
 
-Universal pattern: **binary fork → role decomposition → trade-off → forced choice**.
-This is not an explanation skill. It is a decision skill.
+Pattern: **binary → roles → trade-off → forced choice**.
+This is a decision skill, not an explanation skill.
 
-## Mode
+## Mode — HITL only
 
-**HITL only.** forki has no autonomous mode. The decider is always the user.
-The skill structures, proposes, and challenges — but the final answer in every gated step belongs to the user.
-LLM may propose candidates; **the user must confirm before the next step.**
+| Category | Steps | LLM authority |
+|---|---|---|
+| Auto query | 0 (query) | Full |
+| Flow gate | 0 (decision) | None — `trust` / `reopen` |
+| Verdict gate | 1, 3, 6 | None — user states it |
+| Confirmation gate | 2, 5 | Propose only |
+| Scaffold (skippable) | 4, 7 | Propose, user `skip` |
+| Side effect (opt-out) | 8 | `y` / `n` |
 
-## Step 1: Define the Binary
+LLM proposes; user confirms before next step. No autonomous mode.
 
-State the choice as **exactly 2 options**. Not 3, not "and also".
+> **Bash note**: each Bash invocation is a fresh subshell. Every block re-declares `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"` itself.
 
-- 3+ options → collapse to 2 (best vs second-best, or "do A" vs "everything else")
-- "It depends" → not a decision yet, **ask the user to constrain**
-- Vague target → **Ask the user. No guessing.**
+## Step 0: Past-Decision Query (optional)
 
-**HITL prompt**:
-> "I'm reading the choice as: **A) {option A}** vs **B) {option B}**. Confirm, or correct me."
+```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+bash "$HARNISH_ROOT/scripts/query-assets.sh" --types decision --tags "{topic}" --format text --base-dir "$(pwd)/.harnish" 2>/dev/null || true
+```
 
-Wait for explicit confirmation. Do not proceed on silence or "yeah".
+If a match exists → ask: *"Decided on {date}: {title}. (reopen / trust)"*
+- `trust` → end, report as `## forki Decision (reused)`.
+- `reopen` → Step 1.
 
-Output: `Option A vs Option B`. One line.
+Skip if `.harnish/` absent or no match.
+
+## Step 1: Binary
+
+Exactly **2 options**. 3+ → collapse to "do A vs everything else". "It depends" → ask user to constrain.
+
+**HITL**: *"A) {opt A} vs B) {opt B}. Confirm or correct."*
+
+Wait for explicit confirmation. Output: `A vs B`, one line.
 
 ## Step 2: One-Line Reduction
 
-Compress the problem to **one sentence** in one of these forms:
+Compress to one sentence: *"Who executes X?"* / *"Who owns X?"* / *"What changes when X?"*
 
-- "Who **executes** X?"
-- "Who **owns** X?"
-- "What **changes** when X?"
+**HITL**: *"Reduced: {sentence}. Real question?"*
 
-**HITL prompt**:
-> "Reduced form: *{one sentence}*. Is this the real question?"
-
-If user rejects → propose an alternative reduction. If user rejects again → return to Step 1, the binary is wrong.
-
-If the problem cannot be reduced → the problem is mis-defined. Return to Step 1.
+Reject → propose alternative. Reject again → back to Step 1 (binary is wrong).
 
 ## Step 3: Role Decomposition (D/E/V/R)
 
-For each option, fill **all 4 roles**:
+**On entry**, output first line: `Step 3 attempt {n}/3`.
+`{n}` starts at 1; +1 on each back-jump from Step 5/6/7. On `attempt 4/3`, abort: *"forki could not converge after 3 back-jumps. Gather more context outside this skill."*
+
+Fill all 4 roles per option:
 
 | Role | Question |
-|------|----------|
-| **Decision** | Who judges? |
-| **Execution** | Who acts? |
-| **Validation** | Who verifies? |
-| **Recovery** | Who fixes when it breaks? |
+|---|---|
+| Decision | Who judges? |
+| Execution | Who acts? |
+| Validation | Who verifies? |
+| Recovery | Who fixes when broken? |
 
-Empty cells = hidden risk. Force a name (person, system, agent, "nobody"). "Nobody" is a valid and important answer.
-
-**HITL prompt** (8 cells = 4 roles × 2 options):
-> "Fill in this table. Use a name, a role, a system, or 'nobody'. Empty is not allowed."
-> ```
-> | Role        | Option A | Option B |
-> |-------------|----------|----------|
-> | Decision    | ?        | ?        |
-> | Execution   | ?        | ?        |
-> | Validation  | ?        | ?        |
-> | Recovery    | ?        | ?        |
-> ```
-
-LLM may **propose** a draft table, but the user must confirm or override every cell. If any cell remains `?` after user response → re-ask only the empty cells.
-
-This is the verdict gate. Steps 4 and 7 are scaffold.
+**HITL**: *"Fill the 8 cells. Use a name, system, or 'nobody'. Empty not allowed."*
+LLM may draft; user confirms or overrides each. Empty `?` → re-ask only those cells.
 
 ## Step 4: Three Examples (scaffold)
 
-Apply the role decomposition to **3 concrete cases of different character but the same structure**.
+**HITL**: *"Three cases sharing this D/E/V/R structure: 1. {case}, 2. {case}, 3. {case}. Resonate, or different? (`skip` to skip.)"*
 
-Purpose: prove the structure is real, not a coincidence. Without 3 examples, you might be pattern-matching on 1.
+Skip when concrete enough or user says `skip`. Record skip in report.
 
-**HITL prompt**:
-> "Three example cases that share this D/E/V/R structure:
-> 1. {case 1} — {how it plays out}
-> 2. {case 2} — {how it plays out}
-> 3. {case 3} — {how it plays out}
->
-> Do these resonate, or should I find different ones? (Reply 'skip' to skip this step.)"
-
-Skip allowed when: the problem is so concrete that examples add no information, OR the user replies `skip`. Record the skip in the report.
-
-## Step 5: Trade-off Generation
-
-State what each option **gains** and **loses** in the form:
+## Step 5: Trade-off
 
 ```
-Option A: gains {X}, loses {Y}
-Option B: gains {Y}, loses {X}
+A: gains {X}, loses {Y}
+B: gains {Y}, loses {X}
 ```
 
-Common axes: flexibility ↔ stability, exploration ↔ verification, speed ↔ safety, autonomy ↔ control.
+Axes: flexibility↔stability, speed↔safety, autonomy↔control.
 
-**HITL prompt**:
-> "Trade-off draft:
-> - A gains *{X}*, loses *{Y}*
-> - B gains *{Y}*, loses *{X}*
->
-> Does this match the cost that actually matters to you?"
+**HITL**: *"A gains {X} loses {Y}; B gains {Y} loses {X}. Match what matters?"*
 
-The trade-off must be **the user's**, not the LLM's. If user says "I don't actually care about X" → strike that axis and propose a new trade-off (stay in Step 5; do not return to Step 3).
-
-If both options gain the same thing or lose the same thing → not a real trade-off, **return to Step 3** (role decomposition was incomplete).
+User says "don't care about X" → strike axis, propose new (stay in Step 5).
+Both options gain/lose the same → not real trade-off → back-jump to Step 3.
 
 ## Step 6: Forced Choice
 
-Pick **one**. State it in one line:
+> **Choice**: Option {A|B}. Reason: {one structural reason}.
 
-> **Choice**: Option {A | B}. Reason: {one structural reason from Step 3 or 5}.
+**HITL**: *"Which one? A or B. No 'both', no 'depends'."*
 
-**HITL prompt** (this is THE gate):
-> "Based on the table and trade-off, **which one?** Answer A or B. No 'both', no 'depends'."
+LLM **must not** answer for the user, **must not** signal a preference. *"You choose"* → reply: *"forki cannot decide for you."*
 
-LLM **must not** answer this for the user. LLM may state a structural lean ("the table suggests A because..."), but the verdict is the user's. If user says "you choose" → reply: *"forki cannot decide for you. Pick A or B."*
-
-No "both", no "depends", no "later". If user truly cannot choose, the structure is incomplete — return to Step 3.
+User truly cannot choose → back-jump to Step 3.
 
 ## Step 7: Comprehension Check (scaffold)
 
-Ask the decider 3 Socratic questions.
+**HITL**: *"Quick check (`skip` to skip): 1. What is {X}? 2. Difference between A/B? 3. Who does what under each?"*
 
-**HITL prompt**:
-> "Quick check (skip with `skip`):
-> 1. What is *{X}*? (definition)
-> 2. What's the actual difference between A and B? (contrast)
-> 3. Under each option, who does what? (role recall)"
+Cannot answer all 3 → back-jump to Step 3. Skip on `skip`.
 
-If the decider cannot answer all 3 → the decision is **not internalized**. Re-walk Step 3.
+## Step 8: Record as Decision Asset (side effect, opt-out)
 
-Skip allowed when: the user replies `skip`.
+**8.0 Pre-check**: `.harnish/` absent in CWD → skip step, report `not-persisted: no .harnish in CWD`. Never initialize.
+
+**8.1 HITL** (before any write): LLM proposes default tags first.
+> *"Default tags: `{tag1},{tag2}`. Record? (y / n / edit-tags)"*
+
+- `n` → end, report `skipped (user opt-out)`. **No file written.**
+- `edit-tags` → ask: *"Tags? (comma, kebab-case)"* → use those.
+- `y` → use defaults.
+
+**8.2 Write + record** (single bash). Before substituting:
+- TAGS/TITLE: prepend `\` to each of `"`, `$`, `` ` ``, `\` (safe inside bash double quotes)
+- BODY_CONTENT: ensure no line equals exactly `FORKI_REPORT_EOF` (split it if so)
+
+```bash
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+BODY="/tmp/forki-$(date -u +%Y%m%dT%H%M%SZ).md"
+cat > "$BODY" <<'FORKI_REPORT_EOF'
+{BODY_CONTENT}
+FORKI_REPORT_EOF
+if bash "$HARNISH_ROOT/scripts/record-asset.sh" --type decision --tags "{TAGS}" --title "{TITLE}" --body-file "$BODY" --base-dir "$(pwd)/.harnish"; then
+  echo "FORKI_RESULT: recorded"
+else
+  echo "FORKI_RESULT: record-failed (body kept at $BODY)"
+fi
+```
+
+Quoted heredoc tag → no `$`/backtick expansion in content. Read the `FORKI_RESULT:` line and report accordingly. Step 6 verdict stands regardless of recording outcome.
 
 ## User Response Interpretation Rules
 
-Apply at every HITL prompt.
+Apply at every HITL.
 
-**Clear responses (proceed)**:
-- "A" / "B" / "Option A" → choice or confirmation as appropriate
-- Edited table cells / explicit overrides → use them verbatim
-- "Yes, but change X to Y" → apply the change, re-confirm
+**Clear**: `A`/`B`/explicit edit/`Yes but change X` → use verbatim.
 
-**Ambiguous responses (must re-ask)**:
-- "Yeah", "OK", "Sure", "ㅇㅇ", "응" → **Do not interpret as confirmation.** Re-ask the specific item.
-- "Both", "Either", "Doesn't matter" → invalid for Step 6. Re-state: *"Pick A or B."*
-- "Depends" → ask: *"Depends on what?"* — that constraint becomes a Step 1 input.
-- "You choose" / "Up to you" → **Do not pick.** Reply: *"forki cannot decide for you."*
-- "I don't know" / "몰라" (Step 3 cell) → ask: *"Is the answer 'nobody', or do you need to think more?"* — only proceed on `nobody` or a name.
-- Silence / unrelated → re-ask the same prompt verbatim once. After 2 ignored prompts, abort with: *"forki paused. Resume when you have a position on {item}."*
+**Ambiguous (re-ask)**:
+- `Yeah`/`OK`/`ㅇㅇ`/`응` → not a confirmation. Re-ask the specific item.
+- `Both`/`Either`/`Doesn't matter` → invalid for Step 6. Re-state: *"A or B."*
+- `Depends` → ask: *"On what?"* — that becomes a Step 1 input.
+- `You choose` → *"forki cannot decide for you."*
+- `I don't know` (Step 3 cell) → *"Is the answer 'nobody', or do you need to think more?"*
+- Silence → re-ask once. After 2 ignored, abort: *"forki paused. Resume when you have a position."*
 
-**Escape responses (terminate)**:
-- "Stop" / "Cancel" → end with `forki aborted at Step {N}.`
-- "Restart" → return to Step 1.
+**Escape**: `Stop`/`Cancel` → `forki aborted at Step {N}`. `Restart` → Step 1.
 
 ## Context Budget
 
-| When | What is read |
-|------|--------------|
-| Step 1 (binary) | User input only. No file reads. |
-| Step 2 (reduce) | Already-loaded context. |
-| Step 3 (D/E/V/R) | Already-loaded context. |
-| Step 4 (examples) | Memory/known cases. No new file reads unless user requests. |
-| Step 5–6 | No file reads. |
-| Step 7 (check) | No file reads. |
+forki is a **thinking** skill, not a reading skill.
 
-forki is a **thinking** skill, not a reading skill. Reading more does not help decide.
+| When | Reads |
+|---|---|
+| Step 0 | `.harnish/assets/*.jsonl` filtered. Skip if absent. |
+| Steps 1–7 | Already-loaded context. No new file reads. |
+| Step 8 | Writes 1 line to `.harnish/assets/decision-{date}.jsonl`. No reads. |
 
 ## Report Format
 
@@ -185,57 +175,65 @@ forki is a **thinking** skill, not a reading skill. Reading more does not help d
 ## forki Decision
 
 ### Binary
-Option A: {one-line}
-Option B: {one-line}
+A: {one-line}
+B: {one-line}
 
 ### Reduction
 {one sentence}
 
 ### Roles
-| Role        | Option A | Option B |
-|-------------|----------|----------|
-| Decision    | {who}    | {who}    |
-| Execution   | {who}    | {who}    |
-| Validation  | {who}    | {who}    |
-| Recovery    | {who}    | {who}    |
+| Role        | A | B |
+|-------------|---|---|
+| Decision    | {who} | {who} |
+| Execution   | {who} | {who} |
+| Validation  | {who} | {who} |
+| Recovery    | {who} | {who} |
 
 ### Examples (when applicable)
-1. {case 1} — {how the structure plays out}
-2. {case 2} — {how the structure plays out}
-3. {case 3} — {how the structure plays out}
+1. {case} — {how} | 2. {case} — {how} | 3. {case} — {how}
 
 ### Trade-off
-Option A: gains {X}, loses {Y}
-Option B: gains {Y}, loses {X}
+A: gains {X}, loses {Y}
+B: gains {Y}, loses {X}
 
 ### Choice
-**Option {A | B}** — {one structural reason}
+**Option {A|B}** — {reason}
 
 ### Comprehension (when applicable)
-Q1: {answer}
-Q2: {answer}
-Q3: {answer}
+Q1: {ans} | Q2: {ans} | Q3: {ans}
+
+### Asset
+{recorded | skipped (user opt-out) | not-persisted: no .harnish in CWD | record-failed: {brief reason, body kept at /tmp/forki-*.md}}
 ```
 
-**Skipped scaffold**: replace the section body with `_skipped_`.
+**Skipped scaffold**: section body → `_skipped_`.
+
+**Reused (Step 0 trust)**:
+```
+## forki Decision (reused)
+Source: .harnish/assets/decision-{date}.jsonl
+Title: {title} | Date: {date}
+```
 
 **Aborted**:
 ```
 ## forki Decision (aborted)
-Aborted at Step {N} — {reason: user stop / 2 ignored prompts / restart}.
-Last confirmed state: {brief}
+At Step {N} — {reason: user stop / 2 ignored prompts / restart / could not converge after 3 back-jumps}.
+Last confirmed: {brief}
 ```
 
 ## Prohibited
 
 - More than 2 options in Step 1
-- Skipping Step 3. The D/E/V/R table is the verdict gate.
-- Treating Steps 4 or 7 as gates. They are scaffold; they cannot block a decision.
-- **LLM picking the final choice in Step 6.** Decision belongs to the user. Always.
-- Interpreting "yes/ok/응" as cell-fill or final choice. Always re-ask the specific item.
-- Proceeding to next step on silence
-- "Both" / "depends" / "we'll see" as final choice
-- Reading files to "gather more information" before deciding (without explicit user request)
+- Skipping any verdict gate (Steps 1, 3, 6)
+- Treating Steps 4/7 as gates
+- LLM picking the final choice in Step 6
+- Interpreting `yes`/`ok`/`응` as confirmation. Always re-ask.
+- Proceeding on silence
+- `Both` / `depends` / `later` as final choice
+- Reading files to "gather more info" (without explicit user request)
 - Trade-offs where both options gain/lose the same thing
+- Initializing `.harnish/` from forki
+- Recording an asset on user `n`. Honor opt-out.
 - "FYI..." style supplementary information
 - Verbose decision reports
