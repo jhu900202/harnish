@@ -153,6 +153,14 @@ query-assets.sh --tags "docker" --base-dir /project/.harnish
 - **ralphi** = RALP (Recursive Autonomous Loop Process) + i (inspection)
 - **drafti** = draft + i (PRD generation — drafti-architect + drafti-feature)
 
+## Footnote
+
+> *"If `ralphi` already does it, a new skill is just noise —
+> and distill becomes its own first victim."*
+
+A skill called `distill` was proposed, and erased by the very principle it stood for.
+That was ralphi, working.
+
 ## License
 
 MIT

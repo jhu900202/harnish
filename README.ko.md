@@ -153,6 +153,14 @@ query-assets.sh --tags "docker" --base-dir /project/.harnish
 - **ralphi** = RALP (Recursive Autonomous Loop Process) + i (점검)
 - **drafti** = draft + i (PRD 생성 — drafti-architect + drafti-feature)
 
+## Footnote
+
+> *"`ralphi`가 이미 하는 일이라면, 새 스킬은 노이즈일 뿐이다 —
+> distill은 자기 자신의 첫 희생자가 된다."*
+
+`distill`이라는 스킬이 제안됐고, 자신이 내세운 원리에 의해 지워졌다.
+그게 바로 ralphi가 작동한 순간이었다.
+
 ## License
 
 MIT
