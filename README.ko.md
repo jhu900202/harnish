@@ -121,6 +121,47 @@ claude --plugin-dir /path/to/harnish
 
 스킬은 `/harnish:forki`, `/harnish:harnish`, `/harnish:drafti-architect`, `/harnish:drafti-feature`, `/harnish:ralphi`로 등록됩니다.
 
+## Fork & 커스터마이즈
+
+이 리포를 가져다 쓰는 3가지 방법:
+
+### A. 단일 스킬만 프로젝트에 가져오기
+
+플러그인 설치 없이 스킬 하나만 직접 복사.
+
+```bash
+mkdir -p .claude/skills
+cp -r /path/to/harnish/skills/forki .claude/skills/
+```
+
+해당 스킬이 이 프로젝트에서 `forki`로 사용 가능 (플러그인 네임스페이스 없음).
+`forki` 대신 `harnish`, `ralphi`, `drafti-architect`, `drafti-feature` 중 어느 것도 가능.
+
+### B. 자기만의 플러그인 마켓플레이스로 fork
+
+```bash
+gh repo fork jazz1x/harnish --clone
+cd harnish
+# .claude-plugin/plugin.json 수정 (name, author, repository)
+# .claude-plugin/marketplace.json 수정 (owner, plugin entries)
+# skills/ 아래 스킬 추가/제거/수정
+git commit -am "fork: rebrand"
+git push
+```
+
+유저는 `claude --plugin-dir /path/to/your-fork`로 설치.
+
+### C. 이 리포를 read-only upstream으로 사용
+
+```bash
+git clone https://github.com/jazz1x/harnish.git
+cd your-project
+claude --plugin-dir /path/to/harnish
+git -C /path/to/harnish pull   # 나중에 업데이트
+```
+
+Fork 불필요. 업데이트는 pull로.
+
 ## Development
 
 ```bash

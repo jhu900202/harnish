@@ -121,6 +121,47 @@ claude --plugin-dir /path/to/harnish
 
 Skills register as `/harnish:forki`, `/harnish:harnish`, `/harnish:drafti-architect`, `/harnish:drafti-feature`, `/harnish:ralphi`.
 
+## Fork & Customize
+
+Three ways to use this repo as a base:
+
+### A. Cherry-pick a single skill into your project
+
+Copy one skill directly into your own project — no plugin install needed.
+
+```bash
+mkdir -p .claude/skills
+cp -r /path/to/harnish/skills/forki .claude/skills/
+```
+
+The skill is now available in this project as `forki` (no plugin namespace).
+Replace `forki` with any of: `harnish`, `ralphi`, `drafti-architect`, `drafti-feature`.
+
+### B. Fork as your own plugin marketplace
+
+```bash
+gh repo fork jazz1x/harnish --clone
+cd harnish
+# edit .claude-plugin/plugin.json (name, author, repository)
+# edit .claude-plugin/marketplace.json (owner, plugin entries)
+# add/remove/modify skills under skills/
+git commit -am "fork: rebrand"
+git push
+```
+
+Users install yours with `claude --plugin-dir /path/to/your-fork`.
+
+### C. Use this repo as a read-only upstream
+
+```bash
+git clone https://github.com/jazz1x/harnish.git
+cd your-project
+claude --plugin-dir /path/to/harnish
+git -C /path/to/harnish pull   # update later
+```
+
+No fork needed. Pull to get updates.
+
 ## Development
 
 ```bash
