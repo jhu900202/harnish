@@ -1,12 +1,12 @@
 {
-  "name": "harnish",
-  "description": "자율 구현 엔진. PRD 생성(drafti) → 자율 구현(harnish) → 점검(ralphi).",
+  "name": "harnish-jhu900202",
+  "description": "자율 구현 엔진 (fork). PRD 생성(drafti) → 자율 구현(harnish) → 점검(ralphi).",
   "version": "0.0.1",
   "author": {
     "name": "jhu900202",
     "url": "https://github.com/jhu900202"
   },
-  "homepage": "https://github.com/jhu900202/harnish",
-  "repository": "https://github.com/jhu900202/harnish",
+  "homepage": "https://github.com/jhu900202/harnish-jhu900202",
+  "repository": "https://github.com/jhu900202/harnish-jhu900202",
   "keywords": ["autonomous", "implementation", "prd", "verification", "skills"]
 }

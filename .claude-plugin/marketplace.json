@@ -1,14 +1,14 @@
 {
-  "name": "harnish",
+  "name": "harnish-jhu900202",
   "owner": {
     "name": "jhu900202",
     "email": "jhu900202@outlook.com"
   },
   "plugins": [
     {
-      "name": "harnish",
+      "name": "harnish-jhu900202",
       "source": "./",
-      "description": "자율 구현 엔진. PRD 생성(drafti) → 자율 구현(harnish) → 점검(ralphi).",
+      "description": "자율 구현 엔진 (fork). PRD 생성(drafti) → 자율 구현(harnish) → 점검(ralphi).",
       "version": "0.0.1",
       "author": {
         "name": "jhu900202",
@@ -16,8 +16,8 @@
       },
       "keywords": ["autonomous", "implementation", "prd", "verification", "skills"],
       "category": "developer-tools",
-      "homepage": "https://github.com/jhu900202/harnish",
-      "repository": "https://github.com/jhu900202/harnish",
+      "homepage": "https://github.com/jhu900202/harnish-jhu900202",
+      "repository": "https://github.com/jhu900202/harnish-jhu900202",
       "license": "MIT"
     }
   ]
