@@ -1,12 +1,10 @@
 {
   "name": "harnish",
-  "version": "0.0.1",
   "description": "자율 구현 엔진. PRD 생성(drafti) → 자율 구현(harnish) → 점검(ralphi).",
+  "version": "0.0.1",
   "author": {
-    "name": "jazz1x",
-    "url": "https://github.com/jazz1x"
+    "name": "jhu900202",
+    "url": "https://github.com/jhu900202"
   },
-  "repository": "https://github.com/jazz1x/harnish",
-  "license": "MIT",
   "keywords": ["autonomous", "implementation", "prd", "verification", "skills"]
 }
