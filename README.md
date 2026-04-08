@@ -10,6 +10,7 @@
 
 | Skill | Version | Command | Role |
 |-------|---------|---------|------|
+| **forki** | 0.0.1 | `/harnish:forki` | Decision forcing (binary fork + D/E/V/R + trade-off, HITL only) |
 | **drafti-architect** | 0.0.1 | `/harnish:drafti-architect` | Tech-driven design PRD generation |
 | **drafti-feature** | 0.0.1 | `/harnish:drafti-feature` | Planning-based implementation spec PRD |
 | **harnish** | 0.0.1 | `/harnish:harnish` | Autonomous implementation engine (seeding + RALP loop + anchoring + experience) |
@@ -18,6 +19,8 @@
 Each skill operates in an **independent orbit**, connected only through **shared artifacts (files)**.
 
 ```
+forki   ──→  forces a binary decision (D/E/V/R + trade-off, HITL only)
+                ↓
 drafti  ──→  docs/prd-*.md  ──→  harnish  ──→  implementation code
                                      │
                                      └── .harnish/ (work coordinates + experience, in user project CWD)
@@ -27,6 +30,16 @@ ralphi  ──→  inspects any artifact (PRD, SKILL.md, scripts, code)
 ```
 
 ## Usage
+
+### 0. Decision Forcing (forki)
+
+```
+User: "Should we use Postgres or MongoDB for this?"
+→ forki frames as binary → asks user to confirm A/B
+→ asks user to fill the D/E/V/R table (8 cells)
+→ surfaces trade-off → asks user to commit (LLM cannot decide)
+→ outputs the structural reason for the choice
+```
 
 ### 1. PRD Generation (Design)
 
@@ -85,10 +98,11 @@ User: "Make this a skill"
 harnish/
 ├── .claude-plugin/plugin.json  # Plugin manifest
 ├── skills/
+│   ├── forki/                  # Decision forcing (binary fork + D/E/V/R + trade-off, HITL only)
 │   ├── drafti-architect/       # Tech design PRD generation
 │   ├── drafti-feature/         # Planning spec PRD generation
 │   ├── harnish/                # Autonomous implementation (seeding/RALP/anchoring/experience)
-│   └── ralphi/                  # Inspection (HITL/autonomous)
+│   └── ralphi/                 # Inspection (HITL/autonomous)
 ├── hooks/hooks.json            # Claude Code hooks
 ├── scripts/                    # Shared scripts (16)
 ├── docs/                       # PRD documents
@@ -105,7 +119,48 @@ cd your-project
 claude --plugin-dir /path/to/harnish
 ```
 
-Skills register as `/harnish:harnish`, `/harnish:drafti-architect`, `/harnish:drafti-feature`, `/harnish:ralphi`.
+Skills register as `/harnish:forki`, `/harnish:harnish`, `/harnish:drafti-architect`, `/harnish:drafti-feature`, `/harnish:ralphi`.
+
+## Fork & Customize
+
+Three ways to use this repo as a base:
+
+### A. Cherry-pick a single skill into your project
+
+Copy one skill directly into your own project — no plugin install needed.
+
+```bash
+mkdir -p .claude/skills
+cp -r /path/to/harnish/skills/forki .claude/skills/
+```
+
+The skill is now available in this project as `forki` (no plugin namespace).
+Replace `forki` with any of: `harnish`, `ralphi`, `drafti-architect`, `drafti-feature`.
+
+### B. Fork as your own plugin marketplace
+
+```bash
+gh repo fork jazz1x/harnish --clone
+cd harnish
+# edit .claude-plugin/plugin.json (name, author, repository)
+# edit .claude-plugin/marketplace.json (owner, plugin entries)
+# add/remove/modify skills under skills/
+git commit -am "fork: rebrand"
+git push
+```
+
+Users install yours with `claude --plugin-dir /path/to/your-fork`.
+
+### C. Use this repo as a read-only upstream
+
+```bash
+git clone https://github.com/jazz1x/harnish.git
+cd your-project
+claude --plugin-dir /path/to/harnish
+git -C /path/to/harnish pull   # update later
+```
+
+No fork needed. Pull to get updates.
 
 ## Development
 
@@ -152,6 +207,15 @@ query-assets.sh --tags "docker" --base-dir /project/.harnish
 - **harnish** = harness + ish (autonomous implementation engine)
 - **ralphi** = RALP (Recursive Autonomous Loop Process) + i (inspection)
 - **drafti** = draft + i (PRD generation — drafti-architect + drafti-feature)
+- **forki** = fork + i (decision forcing — binary fork + D/E/V/R + trade-off, HITL only)
+
+## Footnote
+
+> *"If `ralphi` already does it, a new skill is just noise —
+> and distill becomes its own first victim."*
+
+A skill called `distill` was proposed, and erased by the very principle it stood for.
+That was ralphi, working.
 
 ## License
 

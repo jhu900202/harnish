@@ -12,11 +12,9 @@ description: >
 
 > 기획 없이 기술 문제에서 설계 판단을 내리고 구현 가능한 PRD를 만든다.
 
-## 환경 설정
+## Bash 컨벤션
 
-```bash
-HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
-```
+각 Bash 도구 호출은 새 subshell. 모든 bash 블록은 자기 안에서 `HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"`를 다시 선언; 영구 변수 없음.
 
 ## 스킬 체인
 
@@ -42,8 +40,9 @@ HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
 문제에서 태그 3~5개 추출 (기술 스택 → 문제 도메인 → 작업 유형 순).
 
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-  bash "${HARNISH_ROOT}/scripts/query-assets.sh" \
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
+  bash "$HARNISH_ROOT/scripts/query-assets.sh" \
     --tags "{추출 태그}" --format inject \
     --base-dir "$(pwd)/.harnish"
 fi
@@ -89,26 +88,35 @@ fi
 | 중 (1~2주) | 500~2000줄 | §1~§8 전체 | §9 |
 | 대 (1개월+) | 2000줄+ | §1~§8 + 페이즈 분할 | 일정표 |
 
-불명확하면 **중규모** 가정. `references/prd-template.md`를 읽고 작성.
+불명확하면 → **사용자에게 묻는다**: *"규모: 소(1-2일), 중(1-2주), 대(1개월+) 중 어느 것?"* 침묵 가정 금지. `references/prd-template.md`를 읽고 작성.
 
 ## Step 5: 저장 + 자산 기록
 
+**HITL** (어떤 파일 쓰기보다도 먼저):
+> "PRD 초안 준비됨: §{섹션} / {규모}. `docs/prd-{slug}.md`에 저장할까요? (y / n / edit-slug)"
+
+- `n` → 종료. PRD 저장 안 됨.
+- `edit-slug` → slug 묻기, 그 후 `y`.
+- `y` → 아래 저장 진행.
+
+PRD 저장 (`y` 이후만):
 ```bash
 mkdir -p docs/
-# PRD 저장: docs/prd-{slug}.md
+# PRD 내용을 docs/prd-{slug}.md에 작성
 ```
 
 자산 기록 (harnish 생태계 모드):
 ```bash
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
+HARNISH_ROOT="${CLAUDE_PLUGIN_ROOT}"
+if [[ -n "$HARNISH_ROOT" ]]; then
   # Decision 기록
-  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
     --type decision --tags "{태그}" \
     --title "{결정 한 줄}" --content "{선택 근거}" \
     --base-dir "$(pwd)/.harnish"
 
   # Guardrail 기록 (도출된 제약이 있을 때)
-  bash "${HARNISH_ROOT}/scripts/record-asset.sh" \
+  bash "$HARNISH_ROOT/scripts/record-asset.sh" \
     --type guardrail --tags "{태그}" \
     --title "{규칙 한 줄}" --content "{위반 시 결과}" \
     --base-dir "$(pwd)/.harnish"
@@ -132,9 +140,23 @@ fi
 
 기획 문서 유/무로 판단. 의심스러우면 사용자에게 "기획 문서가 있나요?"
 
+## Context Budget
+
+| 시점 | 읽는 것 |
+|---|---|
+| Step 1 (명확화) | 사용자 입력만 |
+| Step 2 (자산 조회) | `.harnish/assets/*.jsonl`을 태그로 필터. `.harnish/` 없으면 생략. |
+| Step 3 (대안) | `references/design-decision.md` |
+| Step 4 (선택 + PRD) | `references/prd-template.md` |
+| Step 5 (저장 + 기록) | 없음 (쓰기만 — `docs/prd-*.md` 와 `.harnish/assets/*.jsonl`) |
+
+reference는 **동시에 1개**까지; 단계 전환 시 교체.
+
 ## 금지
 
 - 대안 1개만으로 끝내기 (최소 2개)
 - "~가 더 낫다" 식 근거 없는 선택
 - 유효 조건 없이 결정 확정
-- reference 2개 동시 로드 (1개씩, 시점별 전환)
+- Step 5에서 사용자 명시 확인 없이 PRD 저장
+- 규모 불명확한데 침묵으로 가정
+- reference 2개 동시 로드
