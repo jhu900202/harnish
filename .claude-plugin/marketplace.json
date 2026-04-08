@@ -9,7 +9,10 @@
   "plugins": [
     {
       "name": "harnish",
-      "source": "github:jhu900202/harnish",
+      "source": {
+        "source": "github",
+        "repo": "jhu900202/harnish"
+      },
       "description": "자율 구현 엔진. PRD 생성(drafti) → 자율 구현(harnish) → 점검(ralphi).",
       "version": "0.0.1"
     }
