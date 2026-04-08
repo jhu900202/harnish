@@ -1,1 +1,2 @@
-../scripts/pre-commit.sh
+#!/bin/sh
+exec "$(dirname "$0")/../scripts/pre-commit.sh"
