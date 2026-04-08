@@ -113,6 +113,22 @@ harnish/
 
 ## Install
 
+### 플러그인 마켓플레이스 방식 (권장)
+
+```
+/plugin marketplace add jazz1x/harnish
+/plugin install harnish@harnish
+```
+
+GitLab 등 다른 git 서비스에서 fork한 경우:
+
+```
+/plugin marketplace add https://gitlab.com/your-org/harnish.git
+/plugin install harnish@harnish
+```
+
+### --plugin-dir 방식
+
 ```bash
 git clone https://github.com/jazz1x/harnish.git
 cd your-project

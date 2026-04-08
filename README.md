@@ -113,6 +113,22 @@ harnish/
 
 ## Install
 
+### Via Plugin Marketplace (recommended)
+
+```
+/plugin marketplace add jazz1x/harnish
+/plugin install harnish@harnish
+```
+
+For GitLab or other self-hosted git services:
+
+```
+/plugin marketplace add https://gitlab.com/your-org/harnish.git
+/plugin install harnish@harnish
+```
+
+### Via --plugin-dir
+
 ```bash
 git clone https://github.com/jazz1x/harnish.git
 cd your-project
